@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import multipart from '@fastify/multipart'
+import rateLimit from '@fastify/rate-limit'
 import prismaPlugin from './plugins/prisma'
 import authPlugin from './plugins/auth'
 
@@ -20,6 +21,7 @@ const app = Fastify({ logger: true })
 
 async function main() {
   await app.register(cors, { origin: true })
+  await app.register(rateLimit, { global: false })
   await app.register(jwt, { secret: process.env.JWT_SECRET || 'changeme-secret-32chars-minimum!!' })
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } })
   await app.register(prismaPlugin)

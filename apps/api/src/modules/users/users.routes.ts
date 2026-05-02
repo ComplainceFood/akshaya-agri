@@ -17,7 +17,7 @@ const updateUserSchema = z.object({
 })
 
 const usersRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook('preHandler', fastify.authenticate)
+  fastify.addHook('preHandler', fastify.requireRole('ADMIN'))
 
   fastify.get('/', async () => {
     return fastify.prisma.user.findMany({
@@ -49,6 +49,16 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       data,
       select: { id: true, name: true, email: true, role: true, isActive: true },
     })
+  })
+
+  fastify.delete('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const user = await fastify.prisma.user.findUniqueOrThrow({ where: { id } })
+    if (user.email === 'admin@akshayaagri.com') {
+      return reply.status(400).send({ error: 'Cannot delete the primary admin account' })
+    }
+    await fastify.prisma.user.update({ where: { id }, data: { isActive: false } })
+    return { success: true }
   })
 }
 

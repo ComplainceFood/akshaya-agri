@@ -38,6 +38,7 @@ function calcDelivery(data: {
 }
 
 const deliveryRoutes: FastifyPluginAsync = async (fastify) => {
+  const adminOnly = fastify.requireRole('ADMIN')
   fastify.addHook('preHandler', fastify.authenticate)
 
   fastify.get('/', async (request) => {
@@ -123,6 +124,19 @@ const deliveryRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string }
     const { status } = request.body as { status: string }
     return fastify.prisma.delivery.update({ where: { id }, data: { status: status as any } })
+  })
+
+  fastify.delete('/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const delivery = await fastify.prisma.delivery.findUniqueOrThrow({
+      where: { id },
+      include: { supplierPaymentAllocations: true, customerReceiptAllocations: true },
+    })
+    if (delivery.supplierPaymentAllocations.length > 0 || delivery.customerReceiptAllocations.length > 0) {
+      return reply.status(400).send({ error: 'Cannot delete a delivery that has payment allocations' })
+    }
+    await fastify.prisma.delivery.delete({ where: { id } })
+    return { success: true }
   })
 
   fastify.get('/supplier/:supplierId/outstanding', async (request) => {

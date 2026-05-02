@@ -14,6 +14,7 @@ const poSchema = z.object({
 })
 
 const purchaseOrderRoutes: FastifyPluginAsync = async (fastify) => {
+  const adminOnly = fastify.requireRole('ADMIN')
   fastify.addHook('preHandler', fastify.authenticate)
 
   fastify.get('/', async (request) => {
@@ -71,6 +72,13 @@ const purchaseOrderRoutes: FastifyPluginAsync = async (fastify) => {
       where: { id },
       data: { status: status as any },
     })
+  })
+
+  fastify.delete('/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const po = await fastify.prisma.purchaseOrder.findUniqueOrThrow({ where: { id }, include: { deliveries: true } })
+    if (po.deliveries.length > 0) return reply.status(400).send({ error: 'Cannot cancel a purchase order that has deliveries' })
+    return fastify.prisma.purchaseOrder.update({ where: { id }, data: { status: 'CANCELLED' } })
   })
 }
 

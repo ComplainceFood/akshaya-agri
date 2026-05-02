@@ -12,6 +12,7 @@ const soSchema = z.object({
 })
 
 const salesOrderRoutes: FastifyPluginAsync = async (fastify) => {
+  const adminOnly = fastify.requireRole('ADMIN')
   fastify.addHook('preHandler', fastify.authenticate)
 
   fastify.get('/', async (request) => {
@@ -62,6 +63,13 @@ const salesOrderRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string }
     const { status } = request.body as { status: string }
     return fastify.prisma.salesOrder.update({ where: { id }, data: { status: status as any } })
+  })
+
+  fastify.delete('/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const so = await fastify.prisma.salesOrder.findUniqueOrThrow({ where: { id }, include: { deliveries: true } })
+    if (so.deliveries.length > 0) return reply.status(400).send({ error: 'Cannot cancel a sales order that has deliveries' })
+    return fastify.prisma.salesOrder.update({ where: { id }, data: { status: 'CANCELLED' } })
   })
 }
 

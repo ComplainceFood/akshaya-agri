@@ -23,6 +23,7 @@ const customerReceiptSchema = z.object({
 })
 
 const paymentRoutes: FastifyPluginAsync = async (fastify) => {
+  const adminOrAccounts = fastify.requireRole('ADMIN', 'ACCOUNTS')
   fastify.addHook('preHandler', fastify.authenticate)
 
   // Supplier Payments
@@ -50,6 +51,23 @@ const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       },
       include: { supplier: true, allocations: true },
     })
+  })
+
+  fastify.put('/supplier/:id', { preHandler: adminOrAccounts }, async (request) => {
+    const { id } = request.params as { id: string }
+    const data = supplierPaymentSchema.partial().omit({ allocations: true }).parse(request.body)
+    return fastify.prisma.supplierPayment.update({
+      where: { id },
+      data: { ...data, ...(data.paymentDate ? { paymentDate: new Date(data.paymentDate) } : {}) },
+      include: { supplier: true, allocations: true },
+    })
+  })
+
+  fastify.delete('/supplier/:id', { preHandler: adminOrAccounts }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    await fastify.prisma.supplierPaymentAllocation.deleteMany({ where: { paymentId: id } })
+    await fastify.prisma.supplierPayment.delete({ where: { id } })
+    return { success: true }
   })
 
   // Supplier ledger: all deliveries vs payments for a supplier
@@ -93,6 +111,23 @@ const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       },
       include: { customer: true, allocations: true },
     })
+  })
+
+  fastify.put('/customer/:id', { preHandler: adminOrAccounts }, async (request) => {
+    const { id } = request.params as { id: string }
+    const data = customerReceiptSchema.partial().omit({ allocations: true }).parse(request.body)
+    return fastify.prisma.customerReceipt.update({
+      where: { id },
+      data: { ...data, ...(data.receiptDate ? { receiptDate: new Date(data.receiptDate) } : {}) },
+      include: { customer: true, allocations: true },
+    })
+  })
+
+  fastify.delete('/customer/:id', { preHandler: adminOrAccounts }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    await fastify.prisma.customerReceiptAllocation.deleteMany({ where: { receiptId: id } })
+    await fastify.prisma.customerReceipt.delete({ where: { id } })
+    return { success: true }
   })
 
   fastify.get('/customer/:customerId/ledger', async (request) => {

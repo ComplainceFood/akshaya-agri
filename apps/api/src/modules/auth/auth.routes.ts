@@ -8,7 +8,11 @@ const loginSchema = z.object({
 })
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.post('/login', async (request, reply) => {
+  fastify.post('/login', {
+    config: {
+      rateLimit: { max: 10, timeWindow: '1 minute' },
+    },
+  }, async (request, reply) => {
     const body = loginSchema.parse(request.body)
     const user = await fastify.prisma.user.findUnique({ where: { email: body.email } })
     if (!user || !user.isActive) return reply.status(401).send({ error: 'Invalid credentials' })

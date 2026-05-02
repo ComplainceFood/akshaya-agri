@@ -7,6 +7,7 @@ const commoditySchema = z.object({
 })
 
 const commoditiesRoutes: FastifyPluginAsync = async (fastify) => {
+  const adminOnly = fastify.requireRole('ADMIN')
   fastify.addHook('preHandler', fastify.authenticate)
 
   fastify.get('/', async () => {
@@ -22,6 +23,14 @@ const commoditiesRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string }
     const data = commoditySchema.partial().parse(request.body)
     return fastify.prisma.commodity.update({ where: { id }, data })
+  })
+
+  fastify.delete('/:id', { preHandler: adminOnly }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const inUse = await fastify.prisma.purchaseOrder.findFirst({ where: { commodityId: id } })
+    if (inUse) return reply.status(400).send({ error: 'Commodity is linked to existing orders and cannot be deleted' })
+    await fastify.prisma.commodity.update({ where: { id }, data: { isActive: false } })
+    return { success: true }
   })
 }
 
