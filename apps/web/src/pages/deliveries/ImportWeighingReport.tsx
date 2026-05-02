@@ -86,7 +86,18 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
         status: 'pending',
       }))
       if (parsed.length === 0) {
-        message.warning('No delivery rows found in the PDF. Please check the file format.')
+        const debug = resp.data.debug || '(no text extracted)'
+        // Show raw extracted text so we can diagnose the format
+        Modal.error({
+          title: 'Could not find delivery rows',
+          content: (
+            <div>
+              <p>The PDF was read but no rows matched. Raw extracted text (first 2000 chars):</p>
+              <pre style={{ fontSize: 10, whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', background: '#f5f5f5', padding: 8 }}>{debug}</pre>
+            </div>
+          ),
+          width: 800,
+        })
         setParsing(false)
         return false
       }
@@ -138,7 +149,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       if (r.status === 'saved') continue
       try {
         await createDelivery({
-          deliveryDate: parseDate(r.outDate || r.inDate),
+          deliveryDate: parseDate(r.outDate),
           vehicleNumber: r.vehicleNumber || 'N/A',
           supplierId: r.supplierId,
           purchaseOrderId: r.purchaseOrderId,
@@ -178,7 +189,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
 
   const columns = [
     { title: 'Challan No', dataIndex: 'challanNo', width: 120, render: (v: string) => <Text code style={{ fontSize: 11 }}>{v}</Text> },
-    { title: 'Date', dataIndex: 'outDate', width: 100, render: (v: string) => <Text style={{ fontSize: 12 }}>{v}</Text> },
+    { title: 'Out Date', dataIndex: 'outDate', width: 100, render: (v: string) => <Text style={{ fontSize: 12 }}>{v}</Text> },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', width: 110, render: (v: string) => <Text style={{ fontSize: 12 }}>{v || <span style={{ color: '#aaa' }}>—</span>}</Text> },
     {
       title: 'Net Wt (Kg)', dataIndex: 'netWeightKg', width: 100,
