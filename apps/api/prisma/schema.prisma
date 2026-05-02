@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATIONS
+  ACCOUNTS
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  WEIGHED
+  QUALITY_CHECKED
+  COMPLETED
+}
+
+enum PaymentMode {
+  NEFT
+  RTGS
+  IMPS
+  CHEQUE
+  CASH
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(OPERATIONS)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Supplier {
+  id            String    @id @default(cuid())
+  name          String
+  contactPerson String?
+  phone         String
+  email         String?
+  address       String?
+  village       String?
+  district      String?
+  state         String    @default("Maharashtra")
+  bankAccount   String?
+  bankIfsc      String?
+  bankName      String?
+  panNumber     String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  purchaseOrders   PurchaseOrder[]
+  deliveries       Delivery[]
+  supplierPayments SupplierPayment[]
+}
+
+model Customer {
+  id             String    @id @default(cuid())
+  name           String
+  contactPerson  String?
+  phone          String
+  email          String?
+  address        String?
+  gstNumber      String?
+  paymentTerms   Int       @default(30)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  salesOrders       SalesOrder[]
+  deliveries        Delivery[]
+  customerReceipts  CustomerReceipt[]
+}
+
+model Commodity {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+  salesOrders    SalesOrder[]
+  deliveries     Delivery[]
+}
+
+model PurchaseOrder {
+  id              String      @id @default(cuid())
+  poNumber        String      @unique
+  supplier        Supplier    @relation(fields: [supplierId], references: [id])
+  supplierId      String
+  commodity       Commodity   @relation(fields: [commodityId], references: [id])
+  commodityId     String
+  orderDate       DateTime
+  quantityOrdered Decimal     @db.Decimal(12, 3)
+  ratePerQuintal  Decimal     @db.Decimal(10, 2)
+  moistureLimit   Decimal?    @db.Decimal(5, 2)
+  foreignMatterLimit Decimal? @db.Decimal(5, 2)
+  status          OrderStatus @default(DRAFT)
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  deliveries Delivery[]
+}
+
+model SalesOrder {
+  id              String      @id @default(cuid())
+  soNumber        String      @unique
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  customerId      String
+  commodity       Commodity   @relation(fields: [commodityId], references: [id])
+  commodityId     String
+  orderDate       DateTime
+  quantityOrdered Decimal     @db.Decimal(12, 3)
+  ratePerQuintal  Decimal     @db.Decimal(10, 2)
+  status          OrderStatus @default(DRAFT)
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  deliveries Delivery[]
+}
+
+model Delivery {
+  id               String         @id @default(cuid())
+  deliveryNumber   String         @unique
+  deliveryDate     DateTime
+  purchaseOrder    PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId  String
+  salesOrder       SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  salesOrderId     String?
+  commodity        Commodity?     @relation(fields: [commodityId], references: [id])
+  commodityId      String?
+  supplier         Supplier       @relation(fields: [supplierId], references: [id])
+  supplierId       String
+  customer         Customer?      @relation(fields: [customerId], references: [id])
+  customerId       String?
+  vehicleNumber    String
+  driverName       String?
+  driverPhone      String?
+  lrNumber         String?
+  lrDocUrl         String?
+
+  grossWeight      Decimal        @db.Decimal(12, 3)
+  tareWeight       Decimal        @db.Decimal(12, 3)
+  netWeight        Decimal        @db.Decimal(12, 3)
+  moisturePct      Decimal?       @db.Decimal(5, 2)
+  foreignMatterPct Decimal?       @db.Decimal(5, 2)
+  qualityDeductionPct Decimal     @default(0) @db.Decimal(5, 2)
+  adjustedWeight   Decimal        @db.Decimal(12, 3)
+
+  purchaseRate     Decimal        @db.Decimal(10, 2)
+  saleRate         Decimal?       @db.Decimal(10, 2)
+  purchaseValue    Decimal        @db.Decimal(14, 2)
+  saleValue        Decimal?       @db.Decimal(14, 2)
+  grossMargin      Decimal?       @db.Decimal(14, 2)
+
+  status           DeliveryStatus @default(PENDING)
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  supplierPaymentAllocations  SupplierPaymentAllocation[]
+  customerReceiptAllocations  CustomerReceiptAllocation[]
+}
+
+model SupplierPayment {
+  id              String      @id @default(cuid())
+  paymentNumber   String      @unique
+  supplier        Supplier    @relation(fields: [supplierId], references: [id])
+  supplierId      String
+  paymentDate     DateTime
+  amount          Decimal     @db.Decimal(14, 2)
+  paymentMode     PaymentMode
+  referenceNumber String?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  allocations SupplierPaymentAllocation[]
+}
+
+model SupplierPaymentAllocation {
+  id                String          @id @default(cuid())
+  payment           SupplierPayment @relation(fields: [paymentId], references: [id])
+  paymentId         String
+  delivery          Delivery        @relation(fields: [deliveryId], references: [id])
+  deliveryId        String
+  allocatedAmount   Decimal         @db.Decimal(14, 2)
+}
+
+model CustomerReceipt {
+  id              String      @id @default(cuid())
+  receiptNumber   String      @unique
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  customerId      String
+  receiptDate     DateTime
+  amount          Decimal     @db.Decimal(14, 2)
+  paymentMode     PaymentMode
+  referenceNumber String?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  allocations CustomerReceiptAllocation[]
+}
+
+model CustomerReceiptAllocation {
+  id              String          @id @default(cuid())
+  receipt         CustomerReceipt @relation(fields: [receiptId], references: [id])
+  receiptId       String
+  delivery        Delivery        @relation(fields: [deliveryId], references: [id])
+  deliveryId      String
+  allocatedAmount Decimal         @db.Decimal(14, 2)
+}
+
+model Sequence {
+  id     String @id
+  prefix String
+  year   String
+  count  Int    @default(0)
+}
