@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Typography, Tag, message } from 'antd'
-import { PlusOutlined, EditOutlined } from '@ant-design/icons'
-import { useSalesOrders, useCreateSalesOrder, useUpdateSalesOrder, useCustomers, useCommodities } from '../../api/hooks'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, Typography, Tag, Popconfirm, message } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useSalesOrders, useCreateSalesOrder, useUpdateSalesOrder, useDeleteSalesOrder, useCustomers, useCommodities } from '../../api/hooks'
 import { formatINR, formatQt } from '../../utils/format'
 import dayjs from 'dayjs'
 
@@ -17,6 +17,7 @@ export default function SalesOrdersPage() {
   const { data: commodities = [] } = useCommodities()
   const { mutateAsync: create } = useCreateSalesOrder()
   const { mutateAsync: update } = useUpdateSalesOrder()
+  const { mutateAsync: remove } = useDeleteSalesOrder()
 
   function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
   function openEdit(r: any) { setEditing(r); form.setFieldsValue({ ...r, orderDate: dayjs(r.orderDate) }); setOpen(true) }
@@ -40,7 +41,20 @@ export default function SalesOrdersPage() {
     { title: 'Rate (₹/Qt)', dataIndex: 'ratePerQuintal', key: 'rate', render: (v: number) => `₹${Number(v).toLocaleString('en-IN')}` },
     { title: 'Total Value', key: 'total', render: (_: any, r: any) => formatINR(Number(r.quantityOrdered) * Number(r.ratePerQuintal)) },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (v: string) => <Tag color={STATUS_COLORS[v]}>{v}</Tag> },
-    { title: 'Actions', key: 'actions', render: (_: any, r: any) => <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button> },
+    {
+      title: 'Actions', key: 'actions', render: (_: any, r: any) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+          <Popconfirm
+            title="Cancel this sales order?"
+            disabled={['COMPLETED', 'CANCELLED'].includes(r.status)}
+            onConfirm={() => remove(r.id).then(() => message.success('SO cancelled')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot cancel'))}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} disabled={['COMPLETED', 'CANCELLED'].includes(r.status)}>Cancel</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ]
 
   return (

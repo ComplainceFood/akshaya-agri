@@ -28,6 +28,10 @@ export const useDeleteSupplier = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (id: string) => api.delete(`/suppliers/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }) })
 }
+export const useDeleteCustomer = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/customers/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }) })
+}
 
 // Customers
 export const useCustomers = () =>
@@ -48,6 +52,14 @@ export const useCreateCommodity = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (data: any) => api.post('/commodities', data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['commodities'] }) })
 }
+export const useUpdateCommodity = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/commodities/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['commodities'] }) })
+}
+export const useDeleteCommodity = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/commodities/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['commodities'] }) })
+}
 
 // Purchase Orders
 export const usePurchaseOrders = (params?: any) =>
@@ -62,6 +74,10 @@ export const useUpdatePurchaseOrder = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/purchase-orders/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }) })
 }
+export const useDeletePurchaseOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/purchase-orders/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }) })
+}
 
 // Sales Orders
 export const useSalesOrders = (params?: any) =>
@@ -73,6 +89,10 @@ export const useCreateSalesOrder = () => {
 export const useUpdateSalesOrder = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/sales-orders/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['sales-orders'] }) })
+}
+export const useDeleteSalesOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/sales-orders/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['sales-orders'] }) })
 }
 
 // Deliveries
@@ -87,6 +107,10 @@ export const useCreateDelivery = () => {
 export const useUpdateDelivery = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/deliveries/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['deliveries'] }) })
+}
+export const useDeleteDelivery = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/deliveries/${id}`).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['deliveries'] }); qc.invalidateQueries({ queryKey: ['reports'] }) } })
 }
 
 // Payments
@@ -126,4 +150,8 @@ export const useCreateUser = () => {
 export const useUpdateUser = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/users/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }) })
+}
+export const useDeleteUser = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/users/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }) })
 }

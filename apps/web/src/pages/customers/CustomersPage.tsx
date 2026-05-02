@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Space, Typography, message } from 'antd'
-import { PlusOutlined, EditOutlined } from '@ant-design/icons'
-import { useCustomers, useCreateCustomer, useUpdateCustomer } from '../../api/hooks'
+import { Table, Button, Modal, Form, Input, InputNumber, Space, Typography, Popconfirm, message } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../api/hooks'
 
 export default function CustomersPage() {
   const [open, setOpen] = useState(false)
@@ -11,6 +11,7 @@ export default function CustomersPage() {
   const { data: customers = [], isLoading } = useCustomers()
   const { mutateAsync: create } = useCreateCustomer()
   const { mutateAsync: update } = useUpdateCustomer()
+  const { mutateAsync: remove } = useDeleteCustomer()
 
   function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
   function openEdit(r: any) { setEditing(r); form.setFieldsValue(r); setOpen(true) }
@@ -32,7 +33,12 @@ export default function CustomersPage() {
     { title: 'Payment Terms', dataIndex: 'paymentTerms', key: 'pt', render: (v: number) => `${v} days` },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+          <Popconfirm title="Deactivate this customer?" onConfirm={() => remove(r.id).then(() => message.success('Customer removed'))}>
+            <Button size="small" danger icon={<DeleteOutlined />}>Remove</Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ]

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Typography, Tag, message, Divider, Row, Col, Descriptions } from 'antd'
-import { PlusOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Typography, Tag, Space, Popconfirm, message, Divider, Row, Col, Descriptions } from 'antd'
+import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
 import {
-  useDeliveries, useCreateDelivery, useUpdateDelivery,
+  useDeliveries, useCreateDelivery, useUpdateDelivery, useDeleteDelivery,
   useSuppliers, useCustomers, usePurchaseOrders, useSalesOrders, useDelivery
 } from '../../api/hooks'
 import { formatINR, formatQt } from '../../utils/format'
@@ -48,6 +48,7 @@ export default function DeliveriesPage() {
   const { data: sos = [] } = useSalesOrders()
   const { mutateAsync: create } = useCreateDelivery()
   const { mutateAsync: update } = useUpdateDelivery()
+  const { mutateAsync: remove } = useDeleteDelivery()
 
   function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
   function openEdit(r: any) {
@@ -78,10 +79,13 @@ export default function DeliveriesPage() {
     { title: 'Status', dataIndex: 'status', key: 'status', render: (v: string) => <Tag color={STATUS_COLORS[v]}>{v}</Tag> },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
-        <span>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => setViewId(r.id)} style={{ marginRight: 4 }}>View</Button>
+        <Space>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => setViewId(r.id)}>View</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
-        </span>
+          <Popconfirm title="Delete this delivery?" onConfirm={() => remove(r.id).then(() => message.success('Deleted')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot delete'))}>
+            <Button size="small" danger icon={<DeleteOutlined />}>Delete</Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ]

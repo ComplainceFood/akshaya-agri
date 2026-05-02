@@ -8,7 +8,7 @@ export default function Dashboard() {
   const { data, isLoading } = useDashboard()
 
   if (isLoading) return <Spin size="large" style={{ display: 'block', margin: '60px auto' }} />
-  if (!data) return null
+  if (!data) return <Typography.Text type="secondary" style={{ display: 'block', margin: '60px auto', textAlign: 'center' }}>Loading dashboard...</Typography.Text>
 
   const columns = [
     { title: 'LR No.', dataIndex: 'deliveryNumber', key: 'deliveryNumber' },

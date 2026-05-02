@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, Typography, Tag, message } from 'antd'
-import { PlusOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
-import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePurchaseOrder, useSuppliers, useCommodities } from '../../api/hooks'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, Typography, Tag, Popconfirm, message } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePurchaseOrder, useDeletePurchaseOrder, useSuppliers, useCommodities } from '../../api/hooks'
 import { formatINR, formatQt } from '../../utils/format'
 import dayjs from 'dayjs'
 
@@ -17,6 +17,7 @@ export default function PurchaseOrdersPage() {
   const { data: commodities = [] } = useCommodities()
   const { mutateAsync: create } = useCreatePurchaseOrder()
   const { mutateAsync: update } = useUpdatePurchaseOrder()
+  const { mutateAsync: remove } = useDeletePurchaseOrder()
 
   function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
   function openEdit(r: any) {
@@ -46,7 +47,16 @@ export default function PurchaseOrdersPage() {
     { title: 'Status', dataIndex: 'status', key: 'status', render: (v: string) => <Tag color={STATUS_COLORS[v]}>{v}</Tag> },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+          <Popconfirm
+            title="Cancel this purchase order?"
+            disabled={['COMPLETED', 'CANCELLED'].includes(r.status)}
+            onConfirm={() => remove(r.id).then(() => message.success('PO cancelled')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot cancel'))}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} disabled={['COMPLETED', 'CANCELLED'].includes(r.status)}>Cancel</Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ]

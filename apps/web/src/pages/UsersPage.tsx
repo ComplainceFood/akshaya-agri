@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, Select, Typography, Tag, message } from 'antd'
-import { PlusOutlined, EditOutlined } from '@ant-design/icons'
-import { useUsers, useCreateUser, useUpdateUser } from '../api/hooks'
+import { Table, Button, Modal, Form, Input, Select, Typography, Tag, Space, Popconfirm, message } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../api/hooks'
 import { useAuthStore } from '../store/auth'
 
 const ROLES = [
@@ -19,6 +19,7 @@ export default function UsersPage() {
   const { data: users = [], isLoading } = useUsers()
   const { mutateAsync: create } = useCreateUser()
   const { mutateAsync: update } = useUpdateUser()
+  const { mutateAsync: remove } = useDeleteUser()
 
   function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
   function openEdit(r: any) { setEditing(r); form.setFieldsValue({ ...r, password: '' }); setOpen(true) }
@@ -40,7 +41,18 @@ export default function UsersPage() {
     { title: 'Status', dataIndex: 'isActive', key: 'status', render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? 'Active' : 'Inactive'}</Tag> },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) =>
-        currentUser?.role === 'ADMIN' ? <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button> : null,
+        currentUser?.role === 'ADMIN' ? (
+          <Space>
+            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
+            <Popconfirm
+              title="Deactivate this user?"
+              disabled={r.email === 'admin@akshayaagri.com'}
+              onConfirm={() => remove(r.id).then(() => message.success('User deactivated')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot remove'))}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} disabled={r.email === 'admin@akshayaagri.com'}>Deactivate</Button>
+            </Popconfirm>
+          </Space>
+        ) : null,
     },
   ]
 
