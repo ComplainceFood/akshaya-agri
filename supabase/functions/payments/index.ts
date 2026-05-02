@@ -66,13 +66,14 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { allocations, ...paymentData } = body
     const paymentNumber = await getNextNumber(db, 'SPAY')
+    const now = new Date().toISOString()
     const { data: payment, error: dbErr } = await db.from('SupplierPayment')
-      .insert({ ...paymentData, paymentNumber })
+      .insert({ ...paymentData, id: crypto.randomUUID(), paymentNumber, createdAt: now, updatedAt: now })
       .select('*, supplier:Supplier(*)')
       .single()
     if (dbErr) return error(dbErr.message)
     if (allocations?.length) {
-      await db.from('SupplierPaymentAllocation').insert(allocations.map((a: any) => ({ ...a, paymentId: payment.id })))
+      await db.from('SupplierPaymentAllocation').insert(allocations.map((a: any) => ({ ...a, id: crypto.randomUUID(), paymentId: payment.id })))
     }
     return json(payment, 201)
   }
@@ -82,13 +83,14 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { allocations, ...receiptData } = body
     const receiptNumber = await getNextNumber(db, 'CREC')
+    const now = new Date().toISOString()
     const { data: receipt, error: dbErr } = await db.from('CustomerReceipt')
-      .insert({ ...receiptData, receiptNumber })
+      .insert({ ...receiptData, id: crypto.randomUUID(), receiptNumber, createdAt: now, updatedAt: now })
       .select('*, customer:Customer(*)')
       .single()
     if (dbErr) return error(dbErr.message)
     if (allocations?.length) {
-      await db.from('CustomerReceiptAllocation').insert(allocations.map((a: any) => ({ ...a, receiptId: receipt.id })))
+      await db.from('CustomerReceiptAllocation').insert(allocations.map((a: any) => ({ ...a, id: crypto.randomUUID(), receiptId: receipt.id })))
     }
     return json(receipt, 201)
   }

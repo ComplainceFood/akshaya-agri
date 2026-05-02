@@ -50,8 +50,9 @@ Deno.serve(async (req) => {
   if (req.method === 'POST') {
     const body = await req.json()
     const soNumber = await getNextNumber(db, 'SO')
+    const now = new Date().toISOString()
     const { data, error: dbErr } = await db.from('SalesOrder')
-      .insert({ ...body, soNumber, status: 'CONFIRMED' })
+      .insert({ ...body, id: crypto.randomUUID(), soNumber, status: 'CONFIRMED', createdAt: now, updatedAt: now })
       .select('*, customer:Customer(*), commodity:Commodity(*)')
       .single()
     if (dbErr) return error(dbErr.message)
