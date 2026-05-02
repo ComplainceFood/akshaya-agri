@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Typography, Tag, Space, Popconfirm, message, Divider, Row, Col, Descriptions } from 'antd'
-import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
+import ImportWeighingReport from './ImportWeighingReport'
 import {
   useDeliveries, useCreateDelivery, useUpdateDelivery, useDeleteDelivery,
   useSuppliers, useCustomers, usePurchaseOrders, useSalesOrders, useDelivery
@@ -37,6 +38,7 @@ function DeliveryDetail({ id }: { id: string }) {
 
 export default function DeliveriesPage() {
   const [open, setOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [viewId, setViewId] = useState<string | null>(null)
   const [editing, setEditing] = useState<any>(null)
   const [form] = Form.useForm()
@@ -94,7 +96,10 @@ export default function DeliveriesPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>Deliveries (Lorry Receipts)</Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Record Delivery</Button>
+        <Space>
+          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Import Weighing Report</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Record Delivery</Button>
+        </Space>
       </div>
       <Table dataSource={deliveries} columns={columns} rowKey="id" loading={isLoading} scroll={{ x: 1000 }} />
 
@@ -102,6 +107,13 @@ export default function DeliveriesPage() {
       <Modal title="Delivery Details" open={!!viewId} onCancel={() => setViewId(null)} footer={null} width={700}>
         {viewId && <DeliveryDetail id={viewId} />}
       </Modal>
+
+      {/* Import Modal */}
+      <ImportWeighingReport
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onDone={() => { setImportOpen(false) }}
+      />
 
       {/* Add/Edit Modal */}
       <Modal title={editing ? 'Edit Delivery' : 'Record Delivery'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={700}>
