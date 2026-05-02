@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const { supplierId, customerId, from, to, status } = Object.fromEntries(url.searchParams)
     let query = db.from('Delivery')
       .select('*, supplier:Supplier(id,name), customer:Customer(id,name), purchaseOrder:PurchaseOrder(id,poNumber), salesOrder:SalesOrder(id,soNumber)')
-      .order('deliveryDate', { ascending: false })
+      .order('lrNumber', { ascending: true, nullsFirst: false })
     if (supplierId) query = query.eq('supplierId', supplierId)
     if (customerId) query = query.eq('customerId', customerId)
     if (status) query = query.eq('status', status)

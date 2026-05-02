@@ -1,10 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import {
-  Modal, Button, Upload, Table, Form, Select, InputNumber, Input,
-  Alert, Steps, Space, Typography, Tag, Tooltip, message, Spin, Row, Col, Divider
+  Modal, Button, Upload, Table, Form, Select, InputNumber,
+  Alert, Steps, Space, Typography, Tag, Tooltip, message, Spin, Switch
 } from 'antd'
-import { UploadOutlined, InboxOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
-import type { UploadFile } from 'antd'
+import { InboxOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import api from '../../api/client'
 import { useCreateDelivery, useSuppliers, usePurchaseOrders, useSalesOrders, useCustomers } from '../../api/hooks'
 import dayjs from 'dayjs'
@@ -13,7 +12,6 @@ dayjs.extend(customParseFormat)
 
 const { Text } = Typography
 
-// Parse date strings like "02-May-26" or "02-May-2026"
 function parseDate(s: string): string {
   if (!s) return dayjs().format('YYYY-MM-DD')
   const d = dayjs(s, ['DD-MMM-YY', 'DD-MMM-YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'], true)
@@ -30,20 +28,36 @@ interface ParsedRow {
   grossWeightKg: number
   tareWeightKg: number
   netWeightKg: number
-  grossWeight: number  // in quintals
+  grossWeight: number  // quintals
   tareWeight: number
   netWeight: number
-  // filled by user
+  // user-filled
   supplierId?: string
   purchaseOrderId?: string
   customerId?: string
   salesOrderId?: string
-  purchaseRate?: number
+  purchaseRate?: number   // ₹ per quintal
   saleRate?: number
-  moisturePct?: number
+  // cess
+  cessApplicable: boolean
+  cessPaid?: number       // ₹ paid so far
+  balanceCess?: number    // outstanding cess
+  // moisture / quality
+  mcPct?: number          // MC content %
   qualityDeductionPct?: number
   status: 'pending' | 'ready' | 'saved' | 'error'
   error?: string
+}
+
+// Calculated display values (not stored in ParsedRow, derived on render)
+function calcRow(r: ParsedRow) {
+  const netQt = r.netWeight  // quintals
+  const rate = r.purchaseRate ?? 0
+  const grossAmt = netQt * rate
+  const balCess = r.cessApplicable ? (r.balanceCess ?? 0) : 0
+  const mcDeduction = r.mcPct ? grossAmt * (r.mcPct / 100) : 0
+  const netPayable = grossAmt - balCess - mcDeduction
+  return { grossAmt, mcDeduction, netPayable, balCess }
 }
 
 interface Props {
@@ -58,7 +72,6 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
   const [saving, setSaving] = useState(false)
   const [rows, setRows] = useState<ParsedRow[]>([])
   const [globalForm] = Form.useForm()
-  const fileRef = useRef<File | null>(null)
 
   const { data: suppliers = [] } = useSuppliers()
   const { data: pos = [] } = usePurchaseOrders()
@@ -67,11 +80,10 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
   const { mutateAsync: createDelivery } = useCreateDelivery()
 
   function reset() {
-    setStep(0); setRows([]); globalForm.resetFields(); fileRef.current = null
+    setStep(0); setRows([]); globalForm.resetFields()
   }
 
   async function handleUpload(file: File) {
-    fileRef.current = file
     setParsing(true)
     try {
       const formData = new FormData()
@@ -82,12 +94,12 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       const parsed: ParsedRow[] = (resp.data.rows || []).map((r: any, i: number) => ({
         ...r,
         key: `${i}-${r.challanNo}`,
+        cessApplicable: false,
         qualityDeductionPct: 0,
         status: 'ready',
       }))
       if (parsed.length === 0) {
         const debug = resp.data.debug || '(no text extracted)'
-        // Show raw extracted text so we can diagnose the format
         Modal.error({
           title: 'Could not find delivery rows',
           content: (
@@ -107,7 +119,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       message.error(`Failed to parse PDF: ${e?.response?.data?.error || e.message}`)
     }
     setParsing(false)
-    return false // prevent antd auto-upload
+    return false
   }
 
   function applyGlobal() {
@@ -120,13 +132,16 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       salesOrderId: vals.salesOrderId ?? r.salesOrderId,
       purchaseRate: vals.purchaseRate ?? r.purchaseRate,
       saleRate: vals.saleRate ?? r.saleRate,
-      moisturePct: vals.moisturePct ?? r.moisturePct,
+      mcPct: vals.mcPct ?? r.mcPct,
+      cessApplicable: vals.cessApplicable !== undefined ? vals.cessApplicable : r.cessApplicable,
+      cessPaid: vals.cessPaid ?? r.cessPaid,
+      balanceCess: vals.balanceCess ?? r.balanceCess,
       qualityDeductionPct: vals.qualityDeductionPct ?? r.qualityDeductionPct,
       status: 'ready',
     })))
   }
 
-  function updateRow(key: string, field: string, value: any) {
+  function upd(key: string, field: string, value: any) {
     setRows(prev => prev.map(r => {
       if (r.key !== key) return r
       return { ...r, [field]: value, status: r.status === 'saved' ? 'saved' : 'ready' }
@@ -134,14 +149,13 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
   }
 
   async function saveAll() {
-    // Mark all unsaved rows as ready regardless of filled fields
-    setRows(prev => prev.map(r => r.status === 'saved' ? r : { ...r, status: 'ready' }))
     setSaving(true)
     let saved = 0, errors = 0
     const updated = [...rows]
     for (let i = 0; i < updated.length; i++) {
       const r = updated[i]
       if (r.status === 'saved') continue
+      const { mcDeduction } = calcRow(r)
       try {
         await createDelivery({
           deliveryDate: parseDate(r.outDate),
@@ -154,8 +168,11 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
           tareWeight: r.tareWeight,
           purchaseRate: r.purchaseRate,
           saleRate: r.saleRate || null,
-          moisturePct: r.moisturePct || null,
+          moisturePct: r.mcPct || null,
           qualityDeductionPct: r.qualityDeductionPct || 0,
+          cessApplicable: r.cessApplicable,
+          cessPaid: r.cessApplicable ? (r.cessPaid ?? null) : null,
+          balanceCess: r.cessApplicable ? (r.balanceCess ?? null) : null,
           lrNumber: r.challanNo,
           notes: `Imported from Sarvani weighing report. Challan: ${r.challanNo}`,
           status: 'COMPLETED',
@@ -178,70 +195,121 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
     }
   }
 
-  const readyCount = rows.filter(r => r.status === 'ready').length
   const savedCount = rows.filter(r => r.status === 'saved').length
   const errorCount = rows.filter(r => r.status === 'error').length
+  const pendingCount = rows.filter(r => r.status !== 'saved').length
+
+  const fmtAmt = (n: number) => n ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'
 
   const columns = [
-    { title: 'Challan No', dataIndex: 'challanNo', width: 120, render: (v: string) => <Text code style={{ fontSize: 11 }}>{v}</Text> },
-    { title: 'Out Date', dataIndex: 'outDate', width: 100, render: (v: string) => <Text style={{ fontSize: 12 }}>{v}</Text> },
-    { title: 'Vehicle', dataIndex: 'vehicleNumber', width: 110, render: (v: string) => <Text style={{ fontSize: 12 }}>{v || <span style={{ color: '#aaa' }}>—</span>}</Text> },
     {
-      title: 'Net Wt (Kg)', dataIndex: 'netWeightKg', width: 100,
-      render: (v: number) => <Text strong>{v?.toLocaleString('en-IN')}</Text>
+      title: 'Challan No', dataIndex: 'challanNo', width: 110, fixed: 'left' as const,
+      render: (v: string) => <Text code style={{ fontSize: 11 }}>{v}</Text>
     },
     {
-      title: 'Supplier', key: 'supplier', width: 180,
-      render: (_: any, r: ParsedRow) => (
-        <Select
-          size="small" placeholder="Select" style={{ width: '100%' }} showSearch optionFilterProp="label"
-          value={r.supplierId}
-          onChange={v => updateRow(r.key, 'supplierId', v)}
-          options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))}
+      title: 'Out Date', dataIndex: 'outDate', width: 95,
+      render: (v: string) => <Text style={{ fontSize: 12 }}>{v}</Text>
+    },
+    {
+      title: 'Vehicle', dataIndex: 'vehicleNumber', width: 115,
+      render: (v: string, r: ParsedRow) => (
+        <input
+          defaultValue={v}
+          placeholder="e.g. AP07TF1234"
+          title="Vehicle number"
+          onBlur={e => upd(r.key, 'vehicleNumber', e.target.value)}
+          style={{ width: '100%', border: '1px solid #d9d9d9', borderRadius: 4, padding: '1px 4px', fontSize: 12 }}
         />
       )
     },
     {
-      title: 'PO', key: 'po', width: 160,
+      title: 'Net Wt (Qt)', dataIndex: 'netWeight', width: 90,
+      render: (v: number) => <Text strong style={{ fontSize: 12 }}>{v?.toFixed(3)}</Text>
+    },
+    {
+      title: 'Supplier', key: 'supplier', width: 170,
       render: (_: any, r: ParsedRow) => (
-        <Select
-          size="small" placeholder="Select PO" style={{ width: '100%' }} showSearch optionFilterProp="label"
-          value={r.purchaseOrderId}
-          onChange={v => updateRow(r.key, 'purchaseOrderId', v)}
+        <Select size="small" placeholder="Supplier" style={{ width: '100%' }} showSearch optionFilterProp="label"
+          value={r.supplierId} onChange={v => upd(r.key, 'supplierId', v)}
+          options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} allowClear />
+      )
+    },
+    {
+      title: 'PO', key: 'po', width: 140,
+      render: (_: any, r: ParsedRow) => (
+        <Select size="small" placeholder="PO" style={{ width: '100%' }} showSearch optionFilterProp="label"
+          value={r.purchaseOrderId} onChange={v => upd(r.key, 'purchaseOrderId', v)}
           options={pos.filter((p: any) => !r.supplierId || p.supplierId === r.supplierId)
-            .map((p: any) => ({ value: p.id, label: p.poNumber }))}
-        />
+            .map((p: any) => ({ value: p.id, label: p.poNumber }))} allowClear />
       )
     },
     {
-      title: 'Rate (₹/Qt)', key: 'rate', width: 120,
+      title: 'Rate (₹/Qt)', key: 'rate', width: 110,
       render: (_: any, r: ParsedRow) => (
-        <InputNumber
-          size="small" min={0} step={0.01} placeholder="e.g. 1847"
-          value={r.purchaseRate}
-          onChange={v => updateRow(r.key, 'purchaseRate', v)}
-          style={{ width: '100%' }}
-        />
+        <InputNumber size="small" min={0} step={0.5} placeholder="Rate"
+          value={r.purchaseRate} onChange={v => upd(r.key, 'purchaseRate', v ?? undefined)}
+          style={{ width: '100%' }} />
       )
     },
     {
-      title: 'Moisture %', key: 'mc', width: 100,
+      title: 'Gross Amt', key: 'grossAmt', width: 100,
+      render: (_: any, r: ParsedRow) => {
+        const { grossAmt } = calcRow(r)
+        return <Text style={{ fontSize: 12, color: grossAmt ? '#000' : '#aaa' }}>{grossAmt ? fmtAmt(grossAmt) : '—'}</Text>
+      }
+    },
+    {
+      title: 'Cess?', key: 'cess', width: 65,
       render: (_: any, r: ParsedRow) => (
-        <InputNumber
-          size="small" min={0} max={100} step={0.1} placeholder="e.g. 14.5"
-          value={r.moisturePct}
-          onChange={v => updateRow(r.key, 'moisturePct', v)}
-          style={{ width: '100%' }}
-        />
+        <Switch size="small" checked={r.cessApplicable}
+          onChange={v => upd(r.key, 'cessApplicable', v)}
+          checkedChildren="Y" unCheckedChildren="N" />
       )
     },
     {
-      title: 'Status', key: 'status', width: 90,
+      title: 'Cess Paid', key: 'cessPaid', width: 100,
+      render: (_: any, r: ParsedRow) => r.cessApplicable ? (
+        <InputNumber size="small" min={0} placeholder="Paid"
+          value={r.cessPaid} onChange={v => upd(r.key, 'cessPaid', v ?? undefined)}
+          style={{ width: '100%' }} />
+      ) : <Text style={{ color: '#ccc', fontSize: 12 }}>N/A</Text>
+    },
+    {
+      title: 'Bal Cess', key: 'balCess', width: 100,
+      render: (_: any, r: ParsedRow) => r.cessApplicable ? (
+        <InputNumber size="small" min={0} placeholder="Balance"
+          value={r.balanceCess} onChange={v => upd(r.key, 'balanceCess', v ?? undefined)}
+          style={{ width: '100%' }} />
+      ) : <Text style={{ color: '#ccc', fontSize: 12 }}>N/A</Text>
+    },
+    {
+      title: 'MC %', key: 'mc', width: 85,
+      render: (_: any, r: ParsedRow) => (
+        <InputNumber size="small" min={0} max={100} step={0.1} placeholder="14.5"
+          value={r.mcPct} onChange={v => upd(r.key, 'mcPct', v ?? undefined)}
+          style={{ width: '100%' }} />
+      )
+    },
+    {
+      title: 'MC Deduction', key: 'mcDed', width: 105,
+      render: (_: any, r: ParsedRow) => {
+        const { mcDeduction } = calcRow(r)
+        return <Text style={{ fontSize: 12, color: mcDeduction ? '#cf1322' : '#aaa' }}>{mcDeduction ? fmtAmt(mcDeduction) : '—'}</Text>
+      }
+    },
+    {
+      title: 'Net Payable', key: 'netPay', width: 105,
+      render: (_: any, r: ParsedRow) => {
+        const { netPayable, grossAmt } = calcRow(r)
+        return <Text strong style={{ fontSize: 12, color: grossAmt ? '#389e0d' : '#aaa' }}>{grossAmt ? fmtAmt(netPayable) : '—'}</Text>
+      }
+    },
+    {
+      title: 'Status', key: 'status', width: 80, fixed: 'right' as const,
       render: (_: any, r: ParsedRow) => {
         if (r.status === 'saved') return <Tag color="green" icon={<CheckCircleOutlined />}>Saved</Tag>
         if (r.status === 'error') return <Tooltip title={r.error}><Tag color="red" icon={<WarningOutlined />}>Error</Tag></Tooltip>
-        if (r.status === 'ready') return <Tag color="blue">Ready</Tag>
-        return <Tag color="orange">Incomplete</Tag>
+        return <Tag color="blue">Ready</Tag>
       }
     },
   ]
@@ -251,7 +319,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       title="Import Sarvani Weighing Report"
       open={open}
       onCancel={() => { reset(); onClose() }}
-      width={1100}
+      width={1400}
       footer={null}
       destroyOnClose
     >
@@ -265,7 +333,6 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
         style={{ marginBottom: 24 }}
       />
 
-      {/* Step 0: Upload */}
       {step === 0 && (
         <Spin spinning={parsing} tip="Parsing PDF...">
           <Upload.Dragger
@@ -285,54 +352,54 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
         </Spin>
       )}
 
-      {/* Step 1: Review */}
       {step === 1 && (
         <>
-          <Alert
-            type="info"
-            showIcon
-            message={`${rows.length} truck loads found in the PDF. Apply common values below, then review each row.`}
-            style={{ marginBottom: 16 }}
+          <Alert type="info" showIcon
+            message={`${rows.length} truck loads found. Fill in common values below, then review each row inline.`}
+            style={{ marginBottom: 12 }}
           />
 
-          {/* Global apply form */}
-          <div style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, marginBottom: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 12 }}>Apply to all rows:</Text>
+          {/* Global apply bar */}
+          <div style={{ background: '#f0f5ff', padding: '12px 16px', borderRadius: 8, marginBottom: 12 }}>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Apply to all rows:</Text>
             <Form form={globalForm} layout="inline" size="small">
-              <Form.Item label="Supplier" name="supplierId" style={{ marginBottom: 8 }}>
-                <Select placeholder="Select supplier" style={{ width: 180 }} showSearch optionFilterProp="label" allowClear
+              <Form.Item label="Supplier" name="supplierId" style={{ marginBottom: 6 }}>
+                <Select placeholder="Supplier" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
                   options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} />
               </Form.Item>
-              <Form.Item label="Purchase Order" name="purchaseOrderId" style={{ marginBottom: 8 }}>
-                <Select placeholder="Select PO" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
+              <Form.Item label="PO" name="purchaseOrderId" style={{ marginBottom: 6 }}>
+                <Select placeholder="PO" style={{ width: 140 }} showSearch optionFilterProp="label" allowClear
                   options={pos.map((p: any) => ({ value: p.id, label: p.poNumber }))} />
               </Form.Item>
-              <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 8 }}>
-                <InputNumber placeholder="e.g. 1847" min={0} step={0.01} style={{ width: 110 }} />
+              <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="e.g. 1847" min={0} step={0.5} style={{ width: 100 }} />
               </Form.Item>
-              <Form.Item label="Sale Rate (₹/Qt)" name="saleRate" style={{ marginBottom: 8 }}>
-                <InputNumber placeholder="e.g. 1900" min={0} step={0.01} style={{ width: 110 }} />
+              <Form.Item label="MC %" name="mcPct" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="e.g. 14.5" min={0} max={100} step={0.1} style={{ width: 85 }} />
               </Form.Item>
-              <Form.Item label="Customer" name="customerId" style={{ marginBottom: 8 }}>
-                <Select placeholder="Select customer" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
-                  options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
+              <Form.Item label="Cess?" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 6 }}>
+                <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
               </Form.Item>
-              <Form.Item label="Sales Order" name="salesOrderId" style={{ marginBottom: 8 }}>
-                <Select placeholder="Select SO" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
-                  options={sos.map((s: any) => ({ value: s.id, label: s.soNumber }))} />
+              <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="0" min={0} style={{ width: 90 }} />
               </Form.Item>
-              <Form.Item style={{ marginBottom: 8 }}>
+              <Form.Item label="Bal Cess" name="balanceCess" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="0" min={0} style={{ width: 90 }} />
+              </Form.Item>
+              <Form.Item label="Sale Rate" name="saleRate" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="e.g. 1900" min={0} step={0.5} style={{ width: 100 }} />
+              </Form.Item>
+              <Form.Item style={{ marginBottom: 6 }}>
                 <Button type="primary" size="small" onClick={applyGlobal}>Apply to All</Button>
               </Form.Item>
             </Form>
           </div>
 
-          {/* Status summary */}
-          <Space style={{ marginBottom: 12 }}>
-            <Tag color="blue">{readyCount} Ready</Tag>
-            <Tag color="orange">{rows.filter(r => r.status === 'pending').length} Incomplete</Tag>
+          <Space style={{ marginBottom: 8 }}>
+            <Tag color="blue">{pendingCount} Pending</Tag>
             {savedCount > 0 && <Tag color="green">{savedCount} Saved</Tag>}
             {errorCount > 0 && <Tag color="red">{errorCount} Errors</Tag>}
+            <Text type="secondary" style={{ fontSize: 12 }}>Net Payable = Gross Amt − Balance Cess − MC Deduction</Text>
           </Space>
 
           <Table
@@ -341,25 +408,22 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 1050, y: 400 }}
+            scroll={{ x: 1500, y: 420 }}
             rowClassName={(r: ParsedRow) => r.status === 'error' ? 'ant-table-row-error' : ''}
           />
 
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => { reset(); onClose() }}>Cancel</Button>
-            <Button
-              type="primary"
-              loading={saving}
-              disabled={rows.filter(r => r.status !== 'saved').length === 0}
+            <Button type="primary" loading={saving}
+              disabled={pendingCount === 0}
               onClick={saveAll}
             >
-              Import {rows.filter(r => r.status !== 'saved').length} Deliveries
+              Import {pendingCount} Deliveries
             </Button>
           </div>
         </>
       )}
 
-      {/* Step 2: Done */}
       {step === 2 && (
         <div style={{ textAlign: 'center', padding: 48 }}>
           <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
