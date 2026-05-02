@@ -83,7 +83,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
         ...r,
         key: `${i}-${r.challanNo}`,
         qualityDeductionPct: 0,
-        status: 'pending',
+        status: 'ready',
       }))
       if (parsed.length === 0) {
         const debug = resp.data.debug || '(no text extracted)'
@@ -122,25 +122,20 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       saleRate: vals.saleRate ?? r.saleRate,
       moisturePct: vals.moisturePct ?? r.moisturePct,
       qualityDeductionPct: vals.qualityDeductionPct ?? r.qualityDeductionPct,
-      status: (vals.supplierId || r.supplierId) && (vals.purchaseOrderId || r.purchaseOrderId) && (vals.purchaseRate || r.purchaseRate) ? 'ready' : 'pending',
+      status: 'ready',
     })))
   }
 
   function updateRow(key: string, field: string, value: any) {
     setRows(prev => prev.map(r => {
       if (r.key !== key) return r
-      const updated = { ...r, [field]: value }
-      const ready = updated.supplierId && updated.purchaseOrderId && updated.purchaseRate
-      return { ...updated, status: ready ? 'ready' : 'pending' }
+      return { ...r, [field]: value, status: r.status === 'saved' ? 'saved' : 'ready' }
     }))
   }
 
   async function saveAll() {
-    const notReady = rows.filter(r => r.status !== 'ready' && r.status !== 'saved')
-    if (notReady.length > 0) {
-      message.warning(`${notReady.length} rows are missing required fields (Supplier, PO, Purchase Rate)`)
-      return
-    }
+    // Mark all unsaved rows as ready regardless of filled fields
+    setRows(prev => prev.map(r => r.status === 'saved' ? r : { ...r, status: 'ready' }))
     setSaving(true)
     let saved = 0, errors = 0
     const updated = [...rows]
@@ -196,7 +191,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       render: (v: number) => <Text strong>{v?.toLocaleString('en-IN')}</Text>
     },
     {
-      title: <span>Supplier <Text type="danger">*</Text></span>, key: 'supplier', width: 180,
+      title: 'Supplier', key: 'supplier', width: 180,
       render: (_: any, r: ParsedRow) => (
         <Select
           size="small" placeholder="Select" style={{ width: '100%' }} showSearch optionFilterProp="label"
@@ -207,7 +202,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       )
     },
     {
-      title: <span>PO <Text type="danger">*</Text></span>, key: 'po', width: 160,
+      title: 'PO', key: 'po', width: 160,
       render: (_: any, r: ParsedRow) => (
         <Select
           size="small" placeholder="Select PO" style={{ width: '100%' }} showSearch optionFilterProp="label"
@@ -219,7 +214,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       )
     },
     {
-      title: <span>Rate (₹/Qt) <Text type="danger">*</Text></span>, key: 'rate', width: 120,
+      title: 'Rate (₹/Qt)', key: 'rate', width: 120,
       render: (_: any, r: ParsedRow) => (
         <InputNumber
           size="small" min={0} step={0.01} placeholder="e.g. 1847"
@@ -355,10 +350,10 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
             <Button
               type="primary"
               loading={saving}
-              disabled={readyCount === 0}
+              disabled={rows.filter(r => r.status !== 'saved').length === 0}
               onClick={saveAll}
             >
-              Import {readyCount} Deliveries
+              Import {rows.filter(r => r.status !== 'saved').length} Deliveries
             </Button>
           </div>
         </>

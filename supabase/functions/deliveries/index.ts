@@ -3,14 +3,17 @@ import { requireAuth, requireRole, getAdminClient } from '../_shared/auth.ts'
 import { getNextNumber } from '../_shared/sequence.ts'
 
 function calcDelivery(data: {
-  grossWeight: number; tareWeight: number
-  qualityDeductionPct: number; purchaseRate: number; saleRate?: number
+  grossWeight?: number; tareWeight?: number
+  qualityDeductionPct?: number; purchaseRate?: number; saleRate?: number
 }) {
-  const netWeight = data.grossWeight - data.tareWeight
-  const adjustedWeight = netWeight * (1 - data.qualityDeductionPct / 100)
-  const purchaseValue = adjustedWeight * data.purchaseRate
-  const saleValue = data.saleRate ? adjustedWeight * data.saleRate : null
-  const grossMargin = saleValue !== null ? saleValue - purchaseValue : null
+  const gross = Number(data.grossWeight ?? 0)
+  const tare = Number(data.tareWeight ?? 0)
+  const qd = Number(data.qualityDeductionPct ?? 0)
+  const netWeight = gross - tare
+  const adjustedWeight = netWeight * (1 - qd / 100)
+  const purchaseValue = data.purchaseRate ? adjustedWeight * Number(data.purchaseRate) : null
+  const saleValue = data.saleRate ? adjustedWeight * Number(data.saleRate) : null
+  const grossMargin = saleValue !== null && purchaseValue !== null ? saleValue - purchaseValue : null
   return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin }
 }
 
