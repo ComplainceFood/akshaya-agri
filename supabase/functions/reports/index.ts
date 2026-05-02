@@ -39,11 +39,24 @@ Deno.serve(async (req) => {
     const totalPaid = (payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
     const totalReceived = (receipts || []).reduce((s: number, r: any) => s + Number(r.amount), 0)
 
+    const today = new Date().toISOString().split('T')[0]
+    const todayDeliveries = (recentDeliveries || []).filter((d: any) => d.deliveryDate?.startsWith(today))
+    const todayWeight = todayDeliveries.reduce((s: number, d: any) => s + Number(d.adjustedWeight ?? 0), 0)
+    const todayPurchaseValue = todayDeliveries.reduce((s: number, d: any) => s + Number(d.purchaseValue ?? 0), 0)
+    const todaySaleValue = todayDeliveries.reduce((s: number, d: any) => s + Number(d.saleValue ?? 0), 0)
+
     return json({
-      totalSuppliers, totalCustomers, pendingPOs, pendingSOs,
+      totalSuppliers, totalCustomers,
+      openPOs: pendingPOs, openSOs: pendingSOs,
       recentDeliveries,
-      outstandingPayable: totalPurchaseValue - totalPaid,
-      outstandingReceivable: totalSaleValue - totalReceived,
+      totalPayable: totalPurchaseValue - totalPaid,
+      totalReceivable: totalSaleValue - totalReceived,
+      today: {
+        deliveryCount: todayDeliveries.length,
+        totalWeightQt: todayWeight,
+        purchaseValue: todayPurchaseValue,
+        margin: todaySaleValue - todayPurchaseValue,
+      },
     })
   }
 
