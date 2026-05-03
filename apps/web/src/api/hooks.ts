@@ -191,6 +191,12 @@ export const usePnL = (params?: any) =>
   useQuery({ queryKey: ['reports', 'pnl', params], queryFn: () => api.get('/reports/pnl', { params }).then(r => r.data) })
 export const useStockReport = () =>
   useQuery({ queryKey: ['reports', 'stock'], queryFn: () => api.get('/reports/stock').then(r => r.data) })
+export const useSupplierReport = (params?: any) =>
+  useQuery({ queryKey: ['reports', 'supplier', params], queryFn: () => api.get('/reports/supplier', { params }).then(r => r.data) })
+export const useCustomerReport = (params?: any) =>
+  useQuery({ queryKey: ['reports', 'customer', params], queryFn: () => api.get('/reports/customer', { params }).then(r => r.data) })
+export const usePaymentsReport = (params?: any) =>
+  useQuery({ queryKey: ['reports', 'payments', params], queryFn: () => api.get('/reports/payments', { params }).then(r => r.data) })
 
 // Users
 export const useUsers = () =>
