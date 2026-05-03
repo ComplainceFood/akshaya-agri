@@ -41,7 +41,7 @@ interface ParsedRow {
   // cess
   cessApplicable: boolean
   cessPaid?: number       // ₹ paid so far
-  balanceCess?: number    // outstanding cess
+  // balanceCess is fully calculated — not user-entered
   // moisture / quality
   mcPct?: number          // MC content %
   qualityDeductionPct?: number
@@ -49,15 +49,19 @@ interface ParsedRow {
   error?: string
 }
 
-// Calculated display values (not stored in ParsedRow, derived on render)
+// Formulas mirror Excel sheet exactly
+// D = GrossAmt = netWeight(Qt) × purchaseRate(₹/Qt)
+// F = MCDeduction = IF(MC%>14, (MC%-14)/100 × D, 0)
+// E = BalanceCess = IF(cessApplicable=NO, −cessPaid, D×0.01 − cessPaid)
+// G = NetPayable = D − E − F
 function calcRow(r: ParsedRow) {
-  const netQt = r.netWeight  // quintals
-  const rate = r.purchaseRate ?? 0
-  const grossAmt = netQt * rate
-  const balCess = r.cessApplicable ? (r.balanceCess ?? 0) : 0
-  const mcDeduction = r.mcPct ? grossAmt * (r.mcPct / 100) : 0
-  const netPayable = grossAmt - balCess - mcDeduction
-  return { grossAmt, mcDeduction, netPayable, balCess }
+  const grossAmt = r.netWeight * (r.purchaseRate ?? 0)
+  const mc = r.mcPct ?? 0
+  const mcDeduction = mc > 14 ? ((mc - 14) / 100) * grossAmt : 0
+  const cessPaid = r.cessPaid ?? 0
+  const balanceCess = r.cessApplicable ? grossAmt * 0.01 - cessPaid : -cessPaid
+  const netPayable = grossAmt - balanceCess - mcDeduction
+  return { grossAmt, mcDeduction, balanceCess, netPayable }
 }
 
 interface Props {
@@ -135,7 +139,6 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       mcPct: vals.mcPct ?? r.mcPct,
       cessApplicable: vals.cessApplicable !== undefined ? vals.cessApplicable : r.cessApplicable,
       cessPaid: vals.cessPaid ?? r.cessPaid,
-      balanceCess: vals.balanceCess ?? r.balanceCess,
       qualityDeductionPct: vals.qualityDeductionPct ?? r.qualityDeductionPct,
       status: 'ready',
     })))
@@ -172,7 +175,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
           qualityDeductionPct: r.qualityDeductionPct || 0,
           cessApplicable: r.cessApplicable,
           cessPaid: r.cessApplicable ? (r.cessPaid ?? null) : null,
-          balanceCess: r.cessApplicable ? (r.balanceCess ?? null) : null,
+          balanceCess: null, // calculated server-side on save
           lrNumber: r.challanNo,
           notes: `Imported from Sarvani weighing report. Challan: ${r.challanNo}`,
           status: 'COMPLETED',
@@ -275,12 +278,16 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       ) : <Text style={{ color: '#ccc', fontSize: 12 }}>N/A</Text>
     },
     {
-      title: 'Bal Cess', key: 'balCess', width: 100,
-      render: (_: any, r: ParsedRow) => r.cessApplicable ? (
-        <InputNumber size="small" min={0} placeholder="Balance"
-          value={r.balanceCess} onChange={v => upd(r.key, 'balanceCess', v ?? undefined)}
-          style={{ width: '100%' }} />
-      ) : <Text style={{ color: '#ccc', fontSize: 12 }}>N/A</Text>
+      title: 'Bal Cess (E)', key: 'balCess', width: 105,
+      render: (_: any, r: ParsedRow) => {
+        const { balanceCess } = calcRow(r)
+        if (!r.purchaseRate) return <Text style={{ color: '#ccc', fontSize: 12 }}>—</Text>
+        return (
+          <Text style={{ fontSize: 12, color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
+            {balanceCess >= 0 ? `₹${balanceCess.toFixed(0)}` : `-₹${Math.abs(balanceCess).toFixed(0)}`}
+          </Text>
+        )
+      }
     },
     {
       title: 'MC %', key: 'mc', width: 85,
@@ -381,9 +388,6 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
                 <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
               </Form.Item>
               <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 6 }}>
-                <InputNumber placeholder="0" min={0} style={{ width: 90 }} />
-              </Form.Item>
-              <Form.Item label="Bal Cess" name="balanceCess" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="0" min={0} style={{ width: 90 }} />
               </Form.Item>
               <Form.Item label="Sale Rate" name="saleRate" style={{ marginBottom: 6 }}>

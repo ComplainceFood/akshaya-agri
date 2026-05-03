@@ -20,7 +20,12 @@ const STATUS_COLORS: Record<string, string> = {
 const qtToKg = (qt: number | null | undefined) => qt != null ? +(Number(qt) * 100).toFixed(1) : null
 const kgToQt = (kg: number | null | undefined) => kg != null ? +(Number(kg) / 100).toFixed(3) : null
 
-// Recalculate derived fields client-side (mirrors server calcDelivery)
+// Recalculate derived fields — formulas match the Excel tracking sheet exactly
+// Weights stored in quintals; rates in ₹/quintal; Excel uses Kg & ₹/kg but results are identical
+// D = GrossAmt = netWeight(Qt) × purchaseRate(₹/Qt)
+// F = MCDeduction = IF(MC%>14, (MC%-14)/100 × D, 0)
+// E = BalanceCess = IF(cessApplicable=NO, -cessPaid, D×0.01 - cessPaid)
+// G = NetPayable = D - E - F
 function calcDerived(r: any) {
   const gross = Number(r.grossWeight ?? 0)
   const tare = Number(r.tareWeight ?? 0)
@@ -30,11 +35,25 @@ function calcDerived(r: any) {
   const purchaseValue = r.purchaseRate ? adjustedWeight * Number(r.purchaseRate) : null
   const saleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
   const grossMargin = saleValue != null && purchaseValue != null ? saleValue - purchaseValue : null
-  const mcDeduction = (purchaseValue && r.moisturePct) ? purchaseValue * (Number(r.moisturePct) / 100) : null
-  const netPayable = purchaseValue != null
-    ? purchaseValue - (r.cessApplicable ? Number(r.balanceCess ?? 0) : 0) - (mcDeduction ?? 0)
+
+  // MC Deduction: only on excess moisture above 14%
+  const mc = Number(r.moisturePct ?? 0)
+  const mcDeduction = purchaseValue != null && mc > 14
+    ? ((mc - 14) / 100) * purchaseValue
+    : 0
+
+  // Balance Cess (fully calculated — no manual entry)
+  const cessPaid = Number(r.cessPaid ?? 0)
+  const balanceCess = purchaseValue != null
+    ? (r.cessApplicable ? purchaseValue * 0.01 - cessPaid : -cessPaid)
     : null
-  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, mcDeduction, netPayable }
+
+  // Net Payable to supplier = GrossAmt - BalanceCess - MCDeduction
+  const netPayable = purchaseValue != null && balanceCess != null
+    ? purchaseValue - balanceCess - mcDeduction
+    : null
+
+  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, mcDeduction, balanceCess, netPayable }
 }
 
 function DeliveryDetail({ id }: { id: string }) {
@@ -45,30 +64,42 @@ function DeliveryDetail({ id }: { id: string }) {
     <Descriptions bordered size="small" column={2}>
       <Descriptions.Item label="Slip No.">{d.lrNumber || '—'}</Descriptions.Item>
       <Descriptions.Item label="System LR No.">{d.deliveryNumber}</Descriptions.Item>
-      <Descriptions.Item label="Date">{dayjs(d.deliveryDate).format('DD MMM YYYY')}</Descriptions.Item>
+      <Descriptions.Item label="Date">{dayjs(d.deliveryDate).format('DD/MM/YYYY')}</Descriptions.Item>
       <Descriptions.Item label="Vehicle">{d.vehicleNumber}</Descriptions.Item>
       <Descriptions.Item label="Supplier">{d.supplier?.name || '—'}</Descriptions.Item>
       <Descriptions.Item label="Purchase Order">{d.purchaseOrder?.poNumber || '—'}</Descriptions.Item>
       <Descriptions.Item label="Gross Weight">{qtToKg(d.grossWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
       <Descriptions.Item label="Tare Weight">{qtToKg(d.tareWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
-      <Descriptions.Item label="Net Weight"><b>{qtToKg(d.netWeight)?.toLocaleString('en-IN')} Kg</b></Descriptions.Item>
+      <Descriptions.Item label="Net Weight (A)"><b>{qtToKg(calc.netWeight)?.toLocaleString('en-IN')} Kg</b></Descriptions.Item>
       <Descriptions.Item label="Quality Deduction">{d.qualityDeductionPct ?? 0}%</Descriptions.Item>
-      <Descriptions.Item label="Adj. Weight" span={2}><b>{qtToKg(calc.adjustedWeight)?.toLocaleString('en-IN')} Kg</b></Descriptions.Item>
-      <Descriptions.Item label="Purchase Rate">₹{Number(d.purchaseRate || 0).toLocaleString('en-IN')}/Qt</Descriptions.Item>
-      <Descriptions.Item label="Purchase Value"><b>{formatINR(calc.purchaseValue)}</b></Descriptions.Item>
-      {d.saleRate && <Descriptions.Item label="Sale Rate">₹{Number(d.saleRate).toLocaleString('en-IN')}/Qt</Descriptions.Item>}
-      {calc.saleValue != null && <Descriptions.Item label="Sale Value"><b>{formatINR(calc.saleValue)}</b></Descriptions.Item>}
+      <Descriptions.Item label="Purchase Rate (B)">₹{Number(d.purchaseRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>
+      <Descriptions.Item label="Gross Amt (D = A×B)"><b>{formatINR(calc.purchaseValue)}</b></Descriptions.Item>
+      <Descriptions.Item label="MC Content %">{d.moisturePct ? `${d.moisturePct}%` : '—'}</Descriptions.Item>
+      <Descriptions.Item label="MC Deduction (F)">
+        <span style={{ color: calc.mcDeduction > 0 ? '#cf1322' : undefined }}>
+          {calc.mcDeduction > 0 ? formatINR(calc.mcDeduction) : '₹0 (MC ≤ 14%)'}
+        </span>
+      </Descriptions.Item>
+      <Descriptions.Item label="Cess Applicable">{d.cessApplicable ? 'Yes' : 'No'}</Descriptions.Item>
+      <Descriptions.Item label="Cess Paid (C)">{formatINR(d.cessPaid ?? 0)}</Descriptions.Item>
+      <Descriptions.Item label="Balance Cess (E)" span={2}>
+        <span style={{ color: calc.balanceCess != null && calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
+          {calc.balanceCess != null ? formatINR(calc.balanceCess) : '—'}
+          <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>
+            {d.cessApplicable ? '(1% of Gross − Cess Paid)' : '(−Cess Paid)'}
+          </span>
+        </span>
+      </Descriptions.Item>
+      <Descriptions.Item label="Net Payable (G = D−E−F)" span={2}>
+        <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '—'}</b>
+      </Descriptions.Item>
+      {d.saleRate && <Descriptions.Item label="Sale Rate">₹{Number(d.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>}
+      {calc.saleValue != null && <Descriptions.Item label="Sale Value">{formatINR(calc.saleValue)}</Descriptions.Item>}
       {calc.grossMargin != null && (
-        <Descriptions.Item label="Gross Margin" span={2}>
-          <b style={{ color: calc.grossMargin >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(calc.grossMargin)}</b>
+        <Descriptions.Item label="Margin" span={2}>
+          <b style={{ color: calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{formatINR(calc.grossMargin)}</b>
         </Descriptions.Item>
       )}
-      {d.moisturePct && <Descriptions.Item label="MC Content %">{d.moisturePct}%</Descriptions.Item>}
-      {calc.mcDeduction != null && <Descriptions.Item label="MC Deduction">{formatINR(calc.mcDeduction)}</Descriptions.Item>}
-      <Descriptions.Item label="Cess Applicable">{d.cessApplicable ? 'Yes' : 'No'}</Descriptions.Item>
-      {d.cessApplicable && <Descriptions.Item label="Cess Paid">{d.cessPaid != null ? formatINR(d.cessPaid) : '—'}</Descriptions.Item>}
-      {d.cessApplicable && <Descriptions.Item label="Balance Cess">{d.balanceCess != null ? formatINR(d.balanceCess) : '—'}</Descriptions.Item>}
-      {calc.netPayable != null && <Descriptions.Item label="Net Payable" span={2}><b style={{ color: '#1677ff' }}>{formatINR(calc.netPayable)}</b></Descriptions.Item>}
       {d.notes && <Descriptions.Item label="Notes" span={2}>{d.notes}</Descriptions.Item>}
     </Descriptions>
   )
@@ -267,7 +298,7 @@ export default function DeliveriesPage() {
     },
     {
       title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 100,
-      render: (v: string) => dayjs(v).format('DD MMM YY')
+      render: (v: string) => dayjs(v).format('DD/MM/YYYY')
     },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 115 },
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 130 },
@@ -349,16 +380,15 @@ export default function DeliveriesPage() {
       }
     },
     {
-      title: 'Bal. Cess', key: 'balCess', width: 100,
+      title: 'Bal. Cess (E)', key: 'balCess', width: 110,
       render: (_: any, raw: any) => {
-        const r = row(raw)
-        return r.cessApplicable ? (
-          <InlineNum
-            value={r.balanceCess}
-            onSave={v => patch(r.id, { balanceCess: v })}
-            prefix="₹"
-          />
-        ) : <span style={{ color: '#ccc' }}>N/A</span>
+        const calc = calcDerived(row(raw))
+        if (calc.balanceCess == null) return <span style={{ color: '#ccc' }}>—</span>
+        return (
+          <span style={{ color: calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
+            {formatINR(calc.balanceCess)}
+          </span>
+        )
       }
     },
     {
@@ -574,13 +604,12 @@ export default function DeliveriesPage() {
                 <Switch checkedChildren="Yes" unCheckedChildren="No" />
               </Form.Item>
             </Col>
-            <Col span={8}>
-              <Form.Item label="Cess Paid (₹)" name="cessPaid">
-                <InputNumber min={0} style={{ width: '100%' }} step={1} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Balance Cess (₹)" name="balanceCess">
+            <Col span={16}>
+              <Form.Item
+                label="Cess Paid (₹)"
+                name="cessPaid"
+                extra="Balance Cess is auto-calculated: if Cess=YES → 1% of Gross − Cess Paid; if NO → −Cess Paid"
+              >
                 <InputNumber min={0} style={{ width: '100%' }} step={1} />
               </Form.Item>
             </Col>

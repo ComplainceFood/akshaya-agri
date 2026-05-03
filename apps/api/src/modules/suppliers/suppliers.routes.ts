@@ -4,7 +4,7 @@ import { z } from 'zod'
 const supplierSchema = z.object({
   name: z.string().min(1),
   contactPerson: z.string().optional(),
-  phone: z.string().min(10),
+  phone: z.string().min(10).optional(),
   email: z.string().email().optional(),
   address: z.string().optional(),
   village: z.string().optional(),

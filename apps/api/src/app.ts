@@ -17,9 +17,9 @@ import deliveryRoutes from './modules/deliveries/deliveries.routes'
 import paymentRoutes from './modules/payments/payments.routes'
 import reportRoutes from './modules/reports/reports.routes'
 
-const app = Fastify({ logger: true })
+export const app = Fastify({ logger: true })
 
-async function main() {
+export async function buildApp() {
   await app.register(cors, { origin: true })
   await app.register(rateLimit, { global: false })
   await app.register(jwt, { secret: process.env.JWT_SECRET || 'changeme-secret-32chars-minimum!!' })
@@ -40,12 +40,17 @@ async function main() {
 
   app.get('/api/health', async () => ({ status: 'ok', app: 'Akshaya Agri Solutions' }))
 
-  const port = Number(process.env.PORT) || 3001
-  await app.listen({ port, host: '0.0.0.0' })
-  console.log(`API running on http://localhost:${port}`)
+  return app
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+// Only start the server when run directly (not in serverless)
+if (require.main === module) {
+  buildApp().then(async (server) => {
+    const port = Number(process.env.PORT) || 3001
+    await server.listen({ port, host: '0.0.0.0' })
+    console.log(`API running on http://localhost:${port}`)
+  }).catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}

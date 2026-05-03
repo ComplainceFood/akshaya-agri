@@ -4,9 +4,12 @@ import { z } from 'zod'
 const customerSchema = z.object({
   name: z.string().min(1),
   contactPerson: z.string().optional(),
-  phone: z.string().min(10),
+  phone: z.string().min(10).optional(),
   email: z.string().email().optional(),
   address: z.string().optional(),
+  village: z.string().optional(),
+  district: z.string().optional(),
+  state: z.string().default('Maharashtra'),
   gstNumber: z.string().optional(),
   paymentTerms: z.number().default(30),
 })

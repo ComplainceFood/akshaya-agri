@@ -1,7 +1,17 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, Space, Typography, Popconfirm, message } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, message } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from '../../api/hooks'
+
+const INDIA_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry',
+]
 
 export default function SuppliersPage() {
   const [open, setOpen] = useState(false)
@@ -58,11 +68,14 @@ export default function SuppliersPage() {
             <Input />
           </Form.Item>
           <Form.Item label="Contact Person" name="contactPerson"><Input /></Form.Item>
-          <Form.Item label="Phone" name="phone" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Phone" name="phone"><Input /></Form.Item>
           <Form.Item label="Email" name="email"><Input /></Form.Item>
           <Form.Item label="Village" name="village"><Input /></Form.Item>
           <Form.Item label="District" name="district"><Input /></Form.Item>
-          <Form.Item label="State" name="state" initialValue="Maharashtra"><Input /></Form.Item>
+          <Form.Item label="State" name="state" initialValue="Maharashtra">
+            <Select showSearch placeholder="Select state" optionFilterProp="label"
+              options={INDIA_STATES.map(s => ({ value: s, label: s }))} />
+          </Form.Item>
           <Form.Item label="Address" name="address"><Input.TextArea rows={2} /></Form.Item>
           <Typography.Text strong>Bank Details</Typography.Text>
           <Form.Item label="Bank Name" name="bankName" style={{ marginTop: 8 }}><Input /></Form.Item>

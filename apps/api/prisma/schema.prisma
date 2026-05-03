@@ -51,7 +51,7 @@ model Supplier {
   id            String    @id @default(cuid())
   name          String
   contactPerson String?
-  phone         String
+  phone         String?
   email         String?
   address       String?
   village       String?
@@ -74,9 +74,12 @@ model Customer {
   id             String    @id @default(cuid())
   name           String
   contactPerson  String?
-  phone          String
+  phone          String?
   email          String?
   address        String?
+  village        String?
+  district       String?
+  state          String    @default("Maharashtra")
   gstNumber      String?
   paymentTerms   Int       @default(30)
   isActive       Boolean   @default(true)
