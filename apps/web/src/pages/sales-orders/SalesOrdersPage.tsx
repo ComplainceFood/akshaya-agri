@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, Typography, Tag, Popconfirm, message, Row, Col } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { useSalesOrders, useCreateSalesOrder, useUpdateSalesOrder, useDeleteSalesOrder, useCustomers, useCommodities } from '../../api/hooks'
 import { formatINR, formatQt } from '../../utils/format'
 import dayjs from 'dayjs'
@@ -10,10 +10,22 @@ const STATUS_COLORS: Record<string, string> = { DRAFT: 'default', CONFIRMED: 'bl
 export default function SalesOrdersPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
+  const [search, setSearch] = useState('')
+  const [filterCustomer, setFilterCustomer] = useState<string>('')
+  const [filterStatus, setFilterStatus] = useState<string>('')
   const [form] = Form.useForm()
 
   const { data: orders = [], isLoading } = useSalesOrders()
   const { data: customers = [] } = useCustomers()
+
+  const filtered = useMemo(() => {
+    return orders.filter((o: any) => {
+      if (filterCustomer && o.customerId !== filterCustomer) return false
+      if (filterStatus && o.status !== filterStatus) return false
+      if (search && !o.soNumber?.toLowerCase().includes(search.toLowerCase()) && !o.customer?.name?.toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+  }, [orders, filterCustomer, filterStatus, search])
   const { data: commodities = [] } = useCommodities()
   const { mutateAsync: create } = useCreateSalesOrder()
   const { mutateAsync: update } = useUpdateSalesOrder()
@@ -59,11 +71,21 @@ export default function SalesOrdersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>Sales Orders</Typography.Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>New Sales Order</Button>
       </div>
-      <Table dataSource={orders} columns={columns} rowKey="id" loading={isLoading} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <Input prefix={<SearchOutlined />} placeholder="Search SO number or customer…" style={{ width: 260 }} allowClear value={search} onChange={e => setSearch(e.target.value)} />
+        <Select placeholder="Filter by Customer" style={{ width: 200 }} allowClear showSearch optionFilterProp="label"
+          options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+          onChange={v => setFilterCustomer(v || '')} />
+        <Select placeholder="Filter by Status" style={{ width: 150 }} allowClear
+          options={['DRAFT','CONFIRMED','IN_PROGRESS','COMPLETED','CANCELLED'].map(v => ({ value: v, label: v }))}
+          onChange={v => setFilterStatus(v || '')} />
+        <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>{filtered.length} order{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
 
       <Modal title={editing ? 'Edit Sales Order' : 'New Sales Order'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={480}>
         <Form form={form} layout="vertical" size="small">

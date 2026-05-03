@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, message, Row, Col, Divider } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from '../../api/hooks'
 
 const INDIA_STATES = [
@@ -15,9 +15,15 @@ const INDIA_STATES = [
 export default function SuppliersPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
+  const [search, setSearch] = useState('')
   const [form] = Form.useForm()
 
   const { data: suppliers = [], isLoading } = useSuppliers()
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return q ? suppliers.filter((s: any) => s.name?.toLowerCase().includes(q) || s.phone?.toLowerCase().includes(q) || s.village?.toLowerCase().includes(q) || s.district?.toLowerCase().includes(q)) : suppliers
+  }, [suppliers, search])
   const { mutateAsync: create } = useCreateSupplier()
   const { mutateAsync: update } = useUpdateSupplier()
   const { mutateAsync: remove } = useDeleteSupplier()
@@ -54,11 +60,15 @@ export default function SuppliersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>Suppliers</Typography.Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add Supplier</Button>
       </div>
-      <Table dataSource={suppliers} columns={columns} rowKey="id" loading={isLoading} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <Input prefix={<SearchOutlined />} placeholder="Search name, phone, village, district…" style={{ width: 320 }} allowClear value={search} onChange={e => setSearch(e.target.value)} />
+        <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>{filtered.length} supplier{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
 
       <Modal title={editing ? 'Edit Supplier' : 'Add Supplier'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={600}>
         <Form form={form} layout="vertical" size="small">

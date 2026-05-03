@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, Popconfirm, message, Row, Col } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../api/hooks'
 
 const INDIA_STATES = [
@@ -15,9 +15,15 @@ const INDIA_STATES = [
 export default function CustomersPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
+  const [search, setSearch] = useState('')
   const [form] = Form.useForm()
 
   const { data: customers = [], isLoading } = useCustomers()
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return q ? customers.filter((c: any) => c.name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q) || c.gstNumber?.toLowerCase().includes(q)) : customers
+  }, [customers, search])
   const { mutateAsync: create } = useCreateCustomer()
   const { mutateAsync: update } = useUpdateCustomer()
   const { mutateAsync: remove } = useDeleteCustomer()
@@ -54,11 +60,15 @@ export default function CustomersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>Customers (Buyers)</Typography.Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add Customer</Button>
       </div>
-      <Table dataSource={customers} columns={columns} rowKey="id" loading={isLoading} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <Input prefix={<SearchOutlined />} placeholder="Search name, phone, GST…" style={{ width: 300 }} allowClear value={search} onChange={e => setSearch(e.target.value)} />
+        <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>{filtered.length} customer{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
 
       <Modal title={editing ? 'Edit Customer' : 'Add Customer'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={560}>
         <Form form={form} layout="vertical" size="small">

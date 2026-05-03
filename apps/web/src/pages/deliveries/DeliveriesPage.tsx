@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker,
-  Typography, Tag, Space, Popconfirm, message, Divider, Row, Col,
-  Descriptions, Switch, Tooltip
+  Typography, Space, Popconfirm, message, Divider, Row, Col,
+  Descriptions, Switch, Tooltip, Tag
 } from 'antd'
-import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined, FilterOutlined, CheckSquareOutlined } from '@ant-design/icons'
 import ImportWeighingReport from './ImportWeighingReport'
 import {
   useDeliveries, useCreateDelivery, useUpdateDelivery, useDeleteDelivery,
@@ -13,19 +13,9 @@ import {
 import { formatINR } from '../../utils/format'
 import dayjs from 'dayjs'
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'orange', WEIGHED: 'blue', QUALITY_CHECKED: 'purple', COMPLETED: 'green'
-}
-
 const qtToKg = (qt: number | null | undefined) => qt != null ? +(Number(qt) * 100).toFixed(1) : null
 const kgToQt = (kg: number | null | undefined) => kg != null ? +(Number(kg) / 100).toFixed(3) : null
 
-// Recalculate derived fields — formulas match the Excel tracking sheet exactly
-// D  = GrossAmt (to supplier)  = netWeight(Qt) × purchaseRate(₹/Qt)
-// D' = SaleGross (from Sarvani) = netWeight(Qt) × saleRate(₹/Qt)
-// F  = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)   ← based on sale price
-// E  = BalanceCess = IF(cessYES, D'×0.01 − CessPaid, −CessPaid)  ← based on sale price
-// G  = NetPayable = D − E − F
 function calcDerived(r: any) {
   const gross = Number(r.grossWeight ?? 0)
   const tare = Number(r.tareWeight ?? 0)
@@ -35,23 +25,15 @@ function calcDerived(r: any) {
   const purchaseValue = r.purchaseRate ? adjustedWeight * Number(r.purchaseRate) : null
   const saleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
   const grossMargin = saleValue != null && purchaseValue != null ? saleValue - purchaseValue : null
-
-  // MC Deduction & Cess are calculated on sale price (what Sarvani pays us)
   const mc = Number(r.moisturePct ?? 0)
-  const mcDeduction = saleValue != null && mc > 14
-    ? ((mc - 14) / 100) * saleValue
-    : 0
-
+  const mcDeduction = saleValue != null && mc > 14 ? ((mc - 14) / 100) * saleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
   const balanceCess = saleValue != null
     ? (r.cessApplicable ? saleValue * 0.01 - cessPaid : -cessPaid)
     : null
-
-  // Net Payable to supplier = GrossAmt(purchase) − BalanceCess − MCDeduction
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction
     : null
-
   return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, mcDeduction, balanceCess, netPayable }
 }
 
@@ -85,7 +67,7 @@ function DeliveryDetail({ id }: { id: string }) {
         <span style={{ color: calc.balanceCess != null && calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
           {calc.balanceCess != null ? formatINR(calc.balanceCess) : '—'}
           <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>
-            {d.cessApplicable ? '(1% of Gross − Cess Paid)' : '(−Cess Paid)'}
+            {d.cessApplicable ? '(1% of Sale − Cess Paid)' : '(−Cess Paid)'}
           </span>
         </span>
       </Descriptions.Item>
@@ -104,92 +86,43 @@ function DeliveryDetail({ id }: { id: string }) {
   )
 }
 
-// Plain text inline editor (no number formatting)
 function InlineText({ value, onSave, placeholder, bold }: {
-  value: string | null | undefined
-  onSave: (v: string | null) => void
-  placeholder?: string
-  bold?: boolean
+  value: string | null | undefined; onSave: (v: string | null) => void
+  placeholder?: string; bold?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-
   function start() { setDraft(value ?? ''); setEditing(true) }
-  function commit() {
-    setEditing(false)
-    const v = draft.trim() || null
-    if (v !== (value ?? null)) onSave(v)
-  }
-
+  function commit() { setEditing(false); const v = draft.trim() || null; if (v !== (value ?? null)) onSave(v) }
   if (editing) {
-    return (
-      <Input
-        autoFocus size="small" value={draft}
-        placeholder={placeholder}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={commit}
-        onPressEnter={commit}
-        style={{ width: 90 }}
-      />
-    )
+    return <Input autoFocus size="small" value={draft} placeholder={placeholder}
+      onChange={e => setDraft(e.target.value)} onBlur={commit} onPressEnter={commit} style={{ width: 90 }} />
   }
   return (
     <Tooltip title="Click to edit">
-      <span
-        onClick={start}
-        style={{
-          cursor: 'pointer',
-          borderBottom: '1px dashed #aaa',
-          fontWeight: bold ? 600 : undefined,
-          whiteSpace: 'nowrap',
-          color: value ? undefined : '#bbb',
-        }}
-      >
+      <span onClick={start} style={{ cursor: 'pointer', borderBottom: '1px dashed #aaa', fontWeight: bold ? 600 : undefined, whiteSpace: 'nowrap', color: value ? undefined : '#bbb' }}>
         {value || <span style={{ color: '#bbb' }}>{placeholder ?? '—'}</span>}
       </span>
     </Tooltip>
   )
 }
 
-// Number inline editor
-function InlineNum({
-  value, onSave, min = 0, step = 1, prefix, suffix, style, decimals = 0
-}: {
-  value: number | null | undefined
-  onSave: (v: number | null) => void
-  min?: number; step?: number; prefix?: string; suffix?: string
-  style?: React.CSSProperties; decimals?: number
+function InlineNum({ value, onSave, min = 0, step = 1, prefix, suffix, style, decimals = 0 }: {
+  value: number | null | undefined; onSave: (v: number | null) => void
+  min?: number; step?: number; prefix?: string; suffix?: string; style?: React.CSSProperties; decimals?: number
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<number | null>(null)
-
   function start() { setDraft(value ?? null); setEditing(true) }
-  function commit() {
-    setEditing(false)
-    if (draft !== value) onSave(draft)
-  }
-
+  function commit() { setEditing(false); if (draft !== value) onSave(draft) }
   if (editing) {
-    return (
-      <InputNumber
-        autoFocus size="small" min={min} step={step}
-        value={draft}
-        onChange={v => setDraft(v)}
-        onBlur={commit}
-        onPressEnter={commit}
-        style={{ width: 90, ...style }}
-      />
-    )
+    return <InputNumber autoFocus size="small" min={min} step={step} value={draft}
+      onChange={v => setDraft(v)} onBlur={commit} onPressEnter={commit} style={{ width: 90, ...style }} />
   }
-  const display = value != null
-    ? `${prefix ?? ''}${Number(value).toLocaleString('en-IN', { maximumFractionDigits: decimals })}${suffix ?? ''}`
-    : null
+  const display = value != null ? `${prefix ?? ''}${Number(value).toLocaleString('en-IN', { maximumFractionDigits: decimals })}${suffix ?? ''}` : null
   return (
     <Tooltip title="Click to edit">
-      <span
-        onClick={start}
-        style={{ cursor: 'pointer', borderBottom: '1px dashed #aaa', whiteSpace: 'nowrap', ...style }}
-      >
+      <span onClick={start} style={{ cursor: 'pointer', borderBottom: '1px dashed #aaa', whiteSpace: 'nowrap', ...style }}>
         {display ?? <span style={{ color: '#bbb' }}>—</span>}
       </span>
     </Tooltip>
@@ -202,9 +135,14 @@ export default function DeliveriesPage() {
   const [viewId, setViewId] = useState<string | null>(null)
   const [editing, setEditing] = useState<any>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  // Optimistic local overrides keyed by delivery id
   const [overrides, setOverrides] = useState<Record<string, Partial<any>>>({})
   const [form] = Form.useForm()
+  const [bulkForm] = Form.useForm()
+
+  // Filters
+  const [filterSupplier, setFilterSupplier] = useState<string | null>(null)
+  const [filterDateRange, setFilterDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
+  const [filterSearch, setFilterSearch] = useState('')
 
   const { data: deliveries = [], isLoading } = useDeliveries()
   const { data: suppliers = [] } = useSuppliers()
@@ -215,35 +153,48 @@ export default function DeliveriesPage() {
   const { mutateAsync: update } = useUpdateDelivery()
   const { mutateAsync: remove } = useDeleteDelivery()
 
-  // Merge server row with any pending optimistic overrides
   const row = useCallback((r: any) => ({ ...r, ...(overrides[r.id] ?? {}) }), [overrides])
+
+  const filteredDeliveries = useMemo(() => {
+    let rows = [...deliveries]
+    if (filterSupplier) rows = rows.filter((r: any) => r.supplierId === filterSupplier)
+    if (filterDateRange) {
+      const [from, to] = filterDateRange
+      rows = rows.filter((r: any) => {
+        const d = dayjs(r.deliveryDate)
+        return d.isAfter(from.subtract(1, 'day')) && d.isBefore(to.add(1, 'day'))
+      })
+    }
+    if (filterSearch) {
+      const q = filterSearch.toLowerCase()
+      rows = rows.filter((r: any) =>
+        r.lrNumber?.toLowerCase().includes(q) ||
+        r.vehicleNumber?.toLowerCase().includes(q) ||
+        r.supplier?.name?.toLowerCase().includes(q)
+      )
+    }
+    return rows.sort((a: any, b: any) => {
+      const an = parseInt(a.lrNumber ?? '0', 10) || 0
+      const bn = parseInt(b.lrNumber ?? '0', 10) || 0
+      if (an !== bn) return an - bn
+      return (a.deliveryNumber ?? '').localeCompare(b.deliveryNumber ?? '')
+    })
+  }, [deliveries, filterSupplier, filterDateRange, filterSearch])
 
   function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
   function openEdit(r: any) {
     const merged = row(r)
     setEditing(merged)
-    form.setFieldsValue({
-      ...merged,
-      deliveryDate: dayjs(merged.deliveryDate),
-      grossWeight: qtToKg(merged.grossWeight),
-      tareWeight: qtToKg(merged.tareWeight),
-      cessApplicable: !!merged.cessApplicable,
-    })
+    form.setFieldsValue({ ...merged, deliveryDate: dayjs(merged.deliveryDate), grossWeight: qtToKg(merged.grossWeight), tareWeight: qtToKg(merged.tareWeight), cessApplicable: !!merged.cessApplicable })
     setOpen(true)
   }
 
   async function onSave() {
     const values = await form.validateFields()
-    const payload = {
-      ...values,
-      deliveryDate: values.deliveryDate.format('YYYY-MM-DD'),
-      grossWeight: kgToQt(values.grossWeight),
-      tareWeight: kgToQt(values.tareWeight),
-    }
+    const payload = { ...values, deliveryDate: values.deliveryDate.format('YYYY-MM-DD'), grossWeight: kgToQt(values.grossWeight), tareWeight: kgToQt(values.tareWeight) }
     try {
       if (editing) {
         await update({ id: editing.id, ...payload })
-        // clear optimistic overrides for this row — server data will refresh
         setOverrides(prev => { const n = { ...prev }; delete n[editing.id]; return n })
         message.success('Delivery updated')
       } else {
@@ -254,12 +205,10 @@ export default function DeliveriesPage() {
     } catch { message.error('Error saving delivery') }
   }
 
-  // Optimistic patch: update local state immediately, persist in background
   const patch = useCallback((id: string, fields: Record<string, any>) => {
     setOverrides(prev => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...fields } }))
     update({ id, ...fields }).catch(() => {
       message.error('Failed to save')
-      // revert on error
       setOverrides(prev => {
         const n = { ...prev }
         const reverted = { ...(n[id] ?? {}) }
@@ -269,6 +218,28 @@ export default function DeliveriesPage() {
       })
     })
   }, [update])
+
+  async function applyToSelected() {
+    const vals = bulkForm.getFieldsValue()
+    const fields: Record<string, any> = {}
+    if (vals.supplierId != null) fields.supplierId = vals.supplierId
+    if (vals.purchaseOrderId != null) fields.purchaseOrderId = vals.purchaseOrderId
+    if (vals.customerId != null) fields.customerId = vals.customerId
+    if (vals.salesOrderId != null) fields.salesOrderId = vals.salesOrderId
+    if (vals.purchaseRate != null) fields.purchaseRate = vals.purchaseRate
+    if (vals.saleRate != null) fields.saleRate = vals.saleRate
+    if (vals.moisturePct != null) fields.moisturePct = vals.moisturePct
+    if (vals.cessApplicable != null) fields.cessApplicable = vals.cessApplicable
+    if (vals.cessPaid != null) fields.cessPaid = vals.cessPaid
+    if (Object.keys(fields).length === 0) { message.warning('No values to apply'); return }
+    let ok = 0
+    for (const id of selectedIds) {
+      patch(id, fields)
+      ok++
+    }
+    message.success(`Applied to ${ok} rows`)
+    bulkForm.resetFields()
+  }
 
   async function deleteSelected() {
     let failed = 0
@@ -282,156 +253,95 @@ export default function DeliveriesPage() {
 
   const columns = [
     {
-      title: 'Slip No.', key: 'slip', width: 90, fixed: 'left' as const,
+      title: 'Slip No.', key: 'slip', width: 85, fixed: 'left' as const,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return (
-          <InlineText
-            value={r.lrNumber}
-            onSave={v => patch(r.id, { lrNumber: v })}
-            placeholder="—"
-            bold
-          />
-        )
+        return <InlineText value={r.lrNumber} onSave={v => patch(r.id, { lrNumber: v })} placeholder="—" bold />
       }
     },
-    {
-      title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 100,
-      render: (v: string) => dayjs(v).format('DD/MM/YYYY')
-    },
-    { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 115 },
+    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 95, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110 },
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 130 },
     {
-      title: 'Net Wt (Kg)', key: 'netWt', width: 105,
+      title: 'Net Wt (Kg)', key: 'netWt', width: 100,
+      render: (_: any, raw: any) => <b>{qtToKg(calcDerived(row(raw)).netWeight)?.toLocaleString('en-IN') ?? '—'}</b>
+    },
+    {
+      title: 'Rate (₹/Qt)', key: 'rate', width: 105,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        const calc = calcDerived(r)
-        return <b>{qtToKg(calc.netWeight)?.toLocaleString('en-IN') ?? '—'}</b>
+        return <InlineNum value={r.purchaseRate} step={0.5} decimals={2} onSave={v => patch(r.id, { purchaseRate: v })} prefix="₹" />
       }
     },
     {
-      title: 'Rate (₹/Qt)', key: 'rate', width: 110,
+      title: 'Purchase Value', key: 'pv', width: 120,
+      render: (_: any, raw: any) => formatINR(calcDerived(row(raw)).purchaseValue)
+    },
+    {
+      title: 'MC %', key: 'mc', width: 75,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return (
-          <InlineNum
-            value={r.purchaseRate} step={0.5} decimals={2}
-            onSave={v => patch(r.id, { purchaseRate: v })}
-            prefix="₹"
-          />
-        )
+        return <InlineNum value={r.moisturePct} step={0.1} decimals={1} onSave={v => patch(r.id, { moisturePct: v })} suffix="%" />
       }
     },
     {
-      title: 'Purchase Value', key: 'pv', width: 125,
+      title: 'MC Ded.', key: 'mcDed', width: 95,
       render: (_: any, raw: any) => {
-        const calc = calcDerived(row(raw))
-        return formatINR(calc.purchaseValue)
+        const { mcDeduction } = calcDerived(row(raw))
+        return mcDeduction > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(mcDeduction)}</span> : <span style={{ color: '#ccc' }}>—</span>
       }
     },
     {
-      title: 'MC %', key: 'mc', width: 80,
+      title: 'Cess?', key: 'cess', width: 62,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return (
-          <InlineNum
-            value={r.moisturePct} step={0.1} decimals={1}
-            onSave={v => patch(r.id, { moisturePct: v })}
-            suffix="%"
-          />
-        )
+        return <Switch size="small" checked={!!r.cessApplicable} checkedChildren="Y" unCheckedChildren="N" onChange={v => patch(r.id, { cessApplicable: v })} />
       }
     },
     {
-      title: 'MC Ded.', key: 'mcDed', width: 100,
-      render: (_: any, raw: any) => {
-        const calc = calcDerived(row(raw))
-        return calc.mcDeduction != null
-          ? <span style={{ color: '#cf1322' }}>{formatINR(calc.mcDeduction)}</span>
-          : <span style={{ color: '#ccc' }}>—</span>
-      }
-    },
-    {
-      title: 'Cess?', key: 'cess', width: 65,
+      title: 'Cess Paid', key: 'cessPaid', width: 95,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return (
-          <Switch
-            size="small"
-            checked={!!r.cessApplicable}
-            checkedChildren="Y" unCheckedChildren="N"
-            onChange={v => patch(r.id, { cessApplicable: v })}
-          />
-        )
+        return <InlineNum value={r.cessPaid} onSave={v => patch(r.id, { cessPaid: v })} prefix="₹" />
       }
     },
     {
-      title: 'Cess Paid', key: 'cessPaid', width: 100,
+      title: 'Bal. Cess', key: 'balCess', width: 105,
       render: (_: any, raw: any) => {
-        const r = row(raw)
-        return (
-          <InlineNum
-            value={r.cessPaid}
-            onSave={v => patch(r.id, { cessPaid: v })}
-            prefix="₹"
-          />
-        )
-      }
-    },
-    {
-      title: 'Bal. Cess (E)', key: 'balCess', width: 110,
-      render: (_: any, raw: any) => {
-        const calc = calcDerived(row(raw))
-        if (calc.balanceCess == null) return <span style={{ color: '#ccc' }}>—</span>
-        return (
-          <span style={{ color: calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
-            {formatINR(calc.balanceCess)}
-          </span>
-        )
+        const { balanceCess } = calcDerived(row(raw))
+        if (balanceCess == null) return <span style={{ color: '#ccc' }}>—</span>
+        return <span style={{ color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>{formatINR(balanceCess)}</span>
       }
     },
     {
       title: 'Net Payable', key: 'netPay', width: 115,
       render: (_: any, raw: any) => {
-        const calc = calcDerived(row(raw))
-        return calc.netPayable != null
-          ? <b style={{ color: '#1677ff' }}>{formatINR(calc.netPayable)}</b>
-          : <span style={{ color: '#ccc' }}>—</span>
+        const { netPayable } = calcDerived(row(raw))
+        return netPayable != null ? <b style={{ color: '#1677ff' }}>{formatINR(netPayable)}</b> : <span style={{ color: '#ccc' }}>—</span>
       }
     },
     {
-      title: 'Sale Value', key: 'sv', width: 115,
+      title: 'Sale Value', key: 'sv', width: 110,
       render: (_: any, raw: any) => {
-        const calc = calcDerived(row(raw))
-        return calc.saleValue != null ? formatINR(calc.saleValue) : '—'
+        const { saleValue } = calcDerived(row(raw))
+        return saleValue != null ? formatINR(saleValue) : '—'
       }
     },
     {
-      title: 'Margin', key: 'margin', width: 110,
+      title: 'Margin', key: 'margin', width: 105,
       render: (_: any, raw: any) => {
-        const calc = calcDerived(row(raw))
-        if (calc.grossMargin == null) return <span style={{ color: '#ccc' }}>—</span>
-        return (
-          <b style={{ color: calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>
-            {formatINR(calc.grossMargin)}
-          </b>
-        )
+        const { grossMargin } = calcDerived(row(raw))
+        if (grossMargin == null) return <span style={{ color: '#ccc' }}>—</span>
+        return <b style={{ color: grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{formatINR(grossMargin)}</b>
       }
     },
     {
-      title: 'Status', dataIndex: 'status', key: 'status', width: 110,
-      render: (v: string) => <Tag color={STATUS_COLORS[v]}>{v}</Tag>
-    },
-    {
-      title: 'Actions', key: 'actions', width: 120, fixed: 'right' as const,
+      title: 'Actions', key: 'actions', width: 110, fixed: 'right' as const,
       render: (_: any, r: any) => (
         <Space size={4}>
           <Button size="small" icon={<EyeOutlined />} onClick={() => setViewId(r.id)} />
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-          <Popconfirm
-            title="Delete this delivery?"
-            onConfirm={() => remove(r.id).then(() => message.success('Deleted')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot delete'))}
-          >
+          <Popconfirm title="Delete this delivery?" onConfirm={() => remove(r.id).then(() => message.success('Deleted')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot delete'))}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -439,18 +349,17 @@ export default function DeliveriesPage() {
     },
   ]
 
+  const hasSelection = selectedIds.length > 0
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <Typography.Title level={4} style={{ margin: 0 }}>Deliveries (Lorry Receipts)</Typography.Title>
         <Space>
-          {selectedIds.length > 0 && (
-            <Popconfirm
-              title={`Delete ${selectedIds.length} selected deliveries?`}
-              onConfirm={deleteSelected}
-              okText="Delete" okButtonProps={{ danger: true }}
-            >
-              <Button danger icon={<DeleteOutlined />}>Delete {selectedIds.length} Selected</Button>
+          {hasSelection && (
+            <Popconfirm title={`Delete ${selectedIds.length} selected deliveries?`} onConfirm={deleteSelected} okText="Delete" okButtonProps={{ danger: true }}>
+              <Button danger icon={<DeleteOutlined />}>Delete {selectedIds.length}</Button>
             </Popconfirm>
           )}
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Import Weighing Report</Button>
@@ -458,31 +367,92 @@ export default function DeliveriesPage() {
         </Space>
       </div>
 
-      {selectedIds.length > 0 && (
-        <div style={{ marginBottom: 8, color: '#888', fontSize: 13 }}>
-          {selectedIds.length} row{selectedIds.length > 1 ? 's' : ''} selected —{' '}
-          <a onClick={() => setSelectedIds([])}>clear</a>
+      {/* Filter bar */}
+      <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+        <Space wrap size={8}>
+          <FilterOutlined style={{ color: '#888' }} />
+          <Input.Search
+            placeholder="Search slip, vehicle, supplier…"
+            allowClear size="small" style={{ width: 220 }}
+            onSearch={v => setFilterSearch(v)}
+            onChange={e => !e.target.value && setFilterSearch('')}
+          />
+          <Select
+            placeholder="Supplier" allowClear showSearch optionFilterProp="label" size="small" style={{ width: 180 }}
+            options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))}
+            onChange={v => setFilterSupplier(v ?? null)}
+          />
+          <DatePicker.RangePicker
+            size="small" format="DD/MM/YYYY" style={{ width: 220 }}
+            onChange={v => setFilterDateRange(v as any)}
+          />
+          {(filterSupplier || filterDateRange || filterSearch) && (
+            <Button size="small" onClick={() => { setFilterSupplier(null); setFilterDateRange(null); setFilterSearch('') }}>
+              Clear
+            </Button>
+          )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {filteredDeliveries.length} of {deliveries.length} rows
+          </Typography.Text>
+        </Space>
+      </div>
+
+      {/* Apply to Selected bar */}
+      {hasSelection && (
+        <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+          <div style={{ marginBottom: 6 }}>
+            <CheckSquareOutlined style={{ color: '#d48806', marginRight: 6 }} />
+            <Typography.Text strong style={{ fontSize: 13 }}>Apply to {selectedIds.length} selected rows:</Typography.Text>
+            <a style={{ marginLeft: 10, fontSize: 12 }} onClick={() => setSelectedIds([])}>clear selection</a>
+          </div>
+          <Form form={bulkForm} layout="inline" size="small">
+            <Form.Item label="Supplier" name="supplierId" style={{ marginBottom: 4 }}>
+              <Select placeholder="Supplier" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
+                options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} />
+            </Form.Item>
+            <Form.Item label="PO" name="purchaseOrderId" style={{ marginBottom: 4 }}>
+              <Select placeholder="PO" style={{ width: 140 }} showSearch optionFilterProp="label" allowClear
+                options={pos.map((p: any) => ({ value: p.id, label: p.poNumber }))} />
+            </Form.Item>
+            <Form.Item label="Customer" name="customerId" style={{ marginBottom: 4 }}>
+              <Select placeholder="Customer" style={{ width: 150 }} showSearch optionFilterProp="label" allowClear
+                options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
+            </Form.Item>
+            <Form.Item label="SO" name="salesOrderId" style={{ marginBottom: 4 }}>
+              <Select placeholder="SO" style={{ width: 130 }} showSearch optionFilterProp="label" allowClear
+                options={sos.map((s: any) => ({ value: s.id, label: s.soNumber }))} />
+            </Form.Item>
+            <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 4 }}>
+              <InputNumber placeholder="Rate" min={0} step={0.5} style={{ width: 95 }} />
+            </Form.Item>
+            <Form.Item label="Sale Rate" name="saleRate" style={{ marginBottom: 4 }}>
+              <InputNumber placeholder="Rate" min={0} step={0.5} style={{ width: 95 }} />
+            </Form.Item>
+            <Form.Item label="MC %" name="moisturePct" style={{ marginBottom: 4 }}>
+              <InputNumber placeholder="14.5" min={0} max={100} step={0.1} style={{ width: 80 }} />
+            </Form.Item>
+            <Form.Item label="Cess?" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 4 }}>
+              <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
+            </Form.Item>
+            <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 4 }}>
+              <InputNumber placeholder="0" min={0} style={{ width: 85 }} />
+            </Form.Item>
+            <Form.Item style={{ marginBottom: 4 }}>
+              <Button type="primary" size="small" onClick={applyToSelected}>Apply to Selected</Button>
+            </Form.Item>
+          </Form>
         </div>
       )}
 
       <Table
-        dataSource={[...deliveries].sort((a: any, b: any) => {
-          const an = parseInt(a.lrNumber ?? '0', 10) || 0
-          const bn = parseInt(b.lrNumber ?? '0', 10) || 0
-          if (an !== bn) return an - bn
-          // fallback: system LR number ascending
-          return (a.deliveryNumber ?? '').localeCompare(b.deliveryNumber ?? '')
-        })}
+        dataSource={filteredDeliveries}
         columns={columns}
         rowKey="id"
         loading={isLoading}
         size="small"
-        scroll={{ x: 1600 }}
-        rowSelection={{
-          selectedRowKeys: selectedIds,
-          onChange: keys => setSelectedIds(keys as string[]),
-        }}
-        pagination={{ pageSize: 50, showSizeChanger: true }}
+        scroll={{ x: 1500 }}
+        rowSelection={{ selectedRowKeys: selectedIds, onChange: keys => setSelectedIds(keys as string[]) }}
+        pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (t) => `${t} deliveries` }}
       />
 
       {/* View Modal */}
@@ -491,131 +461,55 @@ export default function DeliveriesPage() {
       </Modal>
 
       {/* Import Modal */}
-      <ImportWeighingReport
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onDone={() => setImportOpen(false)}
-      />
+      <ImportWeighingReport open={importOpen} onClose={() => setImportOpen(false)} onDone={() => setImportOpen(false)} />
 
       {/* Add/Edit Modal */}
-      <Modal
-        title={editing ? 'Edit Delivery' : 'Record Delivery'}
-        open={open} onOk={onSave} onCancel={() => setOpen(false)}
-        width={760} okText={editing ? 'Save Changes' : 'Record'}
-        okButtonProps={{ icon: <SaveOutlined /> }}
-      >
+      <Modal title={editing ? 'Edit Delivery' : 'Record Delivery'} open={open} onOk={onSave} onCancel={() => setOpen(false)}
+        width={720} okText={editing ? 'Save Changes' : 'Record'} okButtonProps={{ icon: <SaveOutlined /> }}>
         <Form form={form} layout="vertical" size="small">
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item label="Delivery Date" name="deliveryDate" rules={[{ required: true }]}>
-                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Vehicle Number" name="vehicleNumber" rules={[{ required: true }]}>
-                <Input placeholder="e.g. AP07TF6826" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Slip No." name="lrNumber">
-                <Input placeholder="Challan / Slip number" />
-              </Form.Item>
-            </Col>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item label="Delivery Date" name="deliveryDate" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item></Col>
+            <Col span={8}><Form.Item label="Vehicle Number" name="vehicleNumber" rules={[{ required: true }]}><Input placeholder="e.g. AP07TF6826" /></Form.Item></Col>
+            <Col span={8}><Form.Item label="Slip No." name="lrNumber"><Input placeholder="Challan / Slip number" /></Form.Item></Col>
           </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="Supplier" name="supplierId">
-                <Select showSearch optionFilterProp="label" allowClear
-                  options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="Purchase Order" name="purchaseOrderId">
-                <Select showSearch optionFilterProp="label" allowClear
-                  options={pos.map((p: any) => ({ value: p.id, label: `${p.poNumber} — ${p.supplier?.name ?? ''}` }))} />
-              </Form.Item>
-            </Col>
+          <Row gutter={12}>
+            <Col span={12}><Form.Item label="Supplier" name="supplierId"><Select showSearch optionFilterProp="label" allowClear options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} /></Form.Item></Col>
+            <Col span={12}><Form.Item label="Purchase Order" name="purchaseOrderId"><Select showSearch optionFilterProp="label" allowClear options={pos.map((p: any) => ({ value: p.id, label: `${p.poNumber} — ${p.supplier?.name ?? ''}` }))} /></Form.Item></Col>
           </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="Customer (Buyer)" name="customerId">
-                <Select showSearch optionFilterProp="label" allowClear
-                  options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="Sales Order" name="salesOrderId">
-                <Select showSearch optionFilterProp="label" allowClear
-                  options={sos.map((s: any) => ({ value: s.id, label: `${s.soNumber} — ${s.customer?.name ?? ''}` }))} />
-              </Form.Item>
-            </Col>
+          <Row gutter={12}>
+            <Col span={12}><Form.Item label="Customer (Buyer)" name="customerId"><Select showSearch optionFilterProp="label" allowClear options={customers.map((c: any) => ({ value: c.id, label: c.name }))} /></Form.Item></Col>
+            <Col span={12}><Form.Item label="Sales Order" name="salesOrderId"><Select showSearch optionFilterProp="label" allowClear options={sos.map((s: any) => ({ value: s.id, label: `${s.soNumber} — ${s.customer?.name ?? ''}` }))} /></Form.Item></Col>
           </Row>
-
-          <Divider orientation="left" orientationMargin={0}>Weight (Kg)</Divider>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item label="Gross Weight (Kg)" name="grossWeight" rules={[{ required: true }]}>
-                <InputNumber min={0} style={{ width: '100%' }} step={10} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Tare Weight (Kg)" name="tareWeight" rules={[{ required: true }]}>
-                <InputNumber min={0} style={{ width: '100%' }} step={10} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Quality Deduction (%)" name="qualityDeductionPct" initialValue={0}>
-                <InputNumber min={0} max={100} style={{ width: '100%' }} step={0.01} />
-              </Form.Item>
-            </Col>
+          <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Weight (Kg)</Divider>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item label="Gross Weight (Kg)" name="grossWeight" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} step={10} /></Form.Item></Col>
+            <Col span={8}><Form.Item label="Tare Weight (Kg)" name="tareWeight" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} step={10} /></Form.Item></Col>
+            <Col span={8}><Form.Item label="Quality Deduction (%)" name="qualityDeductionPct" initialValue={0}><InputNumber min={0} max={100} style={{ width: '100%' }} step={0.01} /></Form.Item></Col>
           </Row>
-
-          <Divider orientation="left" orientationMargin={0}>Rates</Divider>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="Purchase Rate (₹/Qt)" name="purchaseRate">
-                <InputNumber min={0} style={{ width: '100%' }} step={0.5} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="Sale Rate (₹/Qt)" name="saleRate">
-                <InputNumber min={0} style={{ width: '100%' }} step={0.5} />
-              </Form.Item>
-            </Col>
+          <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Rates</Divider>
+          <Row gutter={12}>
+            <Col span={12}><Form.Item label="Purchase Rate (₹/Qt)" name="purchaseRate"><InputNumber min={0} style={{ width: '100%' }} step={0.5} /></Form.Item></Col>
+            <Col span={12}><Form.Item label="Sale Rate (₹/Qt)" name="saleRate"><InputNumber min={0} style={{ width: '100%' }} step={0.5} /></Form.Item></Col>
           </Row>
-
-          <Divider orientation="left" orientationMargin={0}>Quality & Cess</Divider>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item label="MC Content (%)" name="moisturePct">
-                <InputNumber min={0} max={100} style={{ width: '100%' }} step={0.1} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item label="Foreign Matter (%)" name="foreignMatterPct">
-                <InputNumber min={0} max={100} style={{ width: '100%' }} step={0.1} />
-              </Form.Item>
-            </Col>
+          <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Quality & Cess</Divider>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item label="MC Content (%)" name="moisturePct"><InputNumber min={0} max={100} style={{ width: '100%' }} step={0.1} /></Form.Item></Col>
+            <Col span={8}><Form.Item label="Foreign Matter (%)" name="foreignMatterPct"><InputNumber min={0} max={100} style={{ width: '100%' }} step={0.1} /></Form.Item></Col>
           </Row>
-          <Row gutter={16}>
+          <Row gutter={12}>
             <Col span={8}>
               <Form.Item label="Cess Applicable" name="cessApplicable" valuePropName="checked" initialValue={false}>
                 <Switch checkedChildren="Yes" unCheckedChildren="No" />
               </Form.Item>
             </Col>
             <Col span={16}>
-              <Form.Item
-                label="Cess Paid (₹)"
-                name="cessPaid"
-                extra="Balance Cess is auto-calculated: if Cess=YES → 1% of Gross − Cess Paid; if NO → −Cess Paid"
-              >
+              <Form.Item label="Cess Paid (₹)" name="cessPaid" extra="Balance Cess = 1% of Sale Value − Cess Paid (if Yes), or −Cess Paid (if No)">
                 <InputNumber min={0} style={{ width: '100%' }} step={1} />
               </Form.Item>
             </Col>
           </Row>
-
-          <Divider orientation="left" orientationMargin={0}>Transporter</Divider>
-          <Row gutter={16}>
+          <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Transporter</Divider>
+          <Row gutter={12}>
             <Col span={12}><Form.Item label="Driver Name" name="driverName"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item label="Driver Phone" name="driverPhone"><Input /></Form.Item></Col>
           </Row>
