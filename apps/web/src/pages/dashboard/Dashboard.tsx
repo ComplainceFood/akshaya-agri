@@ -116,37 +116,28 @@ export default function Dashboard() {
       </Row>
 
       {/* ── Overall (All Time) ── */}
-      {data.overall && (
-        <>
-          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-            OVERALL - ALL TIME
-          </Typography.Text>
-          <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-            <Col xs={12} sm={8} lg={4}>
-              <StatCard title="Deliveries" value={String(data.overall.deliveryCount)} prefix={<CarOutlined />} />
-            </Col>
-            <Col xs={12} sm={8} lg={5}>
-              <StatCard title="Weight In" value={fmtKg(data.overall.totalWeightQt)} />
-            </Col>
-            <Col xs={12} sm={8} lg={5}>
-              <StatCard title="Purchase Value" value={formatINR(data.overall.purchaseValue)} />
-            </Col>
-            <Col xs={12} sm={8} lg={5}>
-              <StatCard title="Sale Value" value={formatINR(data.overall.saleValue)} color="#2e7d32" />
-            </Col>
-            <Col xs={12} sm={8} lg={5}>
-              <StatCard title="Margin" value={formatINR(data.overall.margin)}
-                color={data.overall.margin >= 0 ? '#2e7d32' : '#cf1322'}
-                prefix={data.overall.margin >= 0 ? <RiseOutlined /> : <FallOutlined />} />
-            </Col>
-          </Row>
-        </>
-      )}
-
-      {/* ── Financials ── */}
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-        OVERALL POSITION
+        OVERALL — ALL TIME
       </Typography.Text>
+      <Row gutter={[12, 12]} style={{ marginBottom: 8 }}>
+        <Col xs={12} sm={8} lg={4}>
+          <StatCard title="Deliveries" value={String(data.overall?.deliveryCount ?? 0)} prefix={<CarOutlined />} />
+        </Col>
+        <Col xs={12} sm={8} lg={5}>
+          <StatCard title="Weight In" value={fmtKg(data.overall?.totalWeightQt ?? 0)} />
+        </Col>
+        <Col xs={12} sm={8} lg={5}>
+          <StatCard title="Purchase Value" value={formatINR(data.overall?.purchaseValue ?? 0)} />
+        </Col>
+        <Col xs={12} sm={8} lg={5}>
+          <StatCard title="Sale Value" value={formatINR(data.overall?.saleValue ?? 0)} color="#2e7d32" />
+        </Col>
+        <Col xs={12} sm={8} lg={5}>
+          <StatCard title="Margin" value={formatINR(data.overall?.margin ?? 0)}
+            color={(data.overall?.margin ?? 0) >= 0 ? '#2e7d32' : '#cf1322'}
+            prefix={(data.overall?.margin ?? 0) >= 0 ? <RiseOutlined /> : <FallOutlined />} />
+        </Col>
+      </Row>
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         <Col xs={12} sm={8}>
           <StatCard title="Total Payable (Suppliers)" value={formatINR(data.totalPayable)} color="#cf1322" prefix={<FallOutlined />} />
