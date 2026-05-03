@@ -2,12 +2,7 @@
   "name": "akshaya-agri",
   "private": true,
   "scripts": {
-    "dev:api": "pnpm --filter api dev",
-    "dev:web": "pnpm --filter web dev",
-    "build:api": "pnpm --filter api build",
-    "build:web": "pnpm --filter web build",
-    "db:migrate": "pnpm --filter api db:migrate",
-    "db:seed": "pnpm --filter api db:seed",
-    "db:studio": "pnpm --filter api db:studio"
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build"
   }
 }
