@@ -72,7 +72,14 @@ export const useCreatePurchaseOrder = () => {
 }
 export const useUpdatePurchaseOrder = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/purchase-orders/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['purchase-orders'] }) })
+  return useMutation({
+    mutationFn: ({ id, ...data }: any) => api.put(`/purchase-orders/${id}`, data).then(r => r.data),
+    onSuccess: (updated) => {
+      qc.setQueriesData({ queryKey: ['purchase-orders'] }, (old: any) =>
+        Array.isArray(old) ? old.map((o: any) => o.id === updated.id ? { ...o, ...updated } : o) : old
+      )
+    },
+  })
 }
 export const useDeletePurchaseOrder = () => {
   const qc = useQueryClient()
@@ -88,7 +95,14 @@ export const useCreateSalesOrder = () => {
 }
 export const useUpdateSalesOrder = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/sales-orders/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['sales-orders'] }) })
+  return useMutation({
+    mutationFn: ({ id, ...data }: any) => api.put(`/sales-orders/${id}`, data).then(r => r.data),
+    onSuccess: (updated) => {
+      qc.setQueriesData({ queryKey: ['sales-orders'] }, (old: any) =>
+        Array.isArray(old) ? old.map((o: any) => o.id === updated.id ? { ...o, ...updated } : o) : old
+      )
+    },
+  })
 }
 export const useDeleteSalesOrder = () => {
   const qc = useQueryClient()
