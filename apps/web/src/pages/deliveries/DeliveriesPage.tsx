@@ -21,11 +21,11 @@ const qtToKg = (qt: number | null | undefined) => qt != null ? +(Number(qt) * 10
 const kgToQt = (kg: number | null | undefined) => kg != null ? +(Number(kg) / 100).toFixed(3) : null
 
 // Recalculate derived fields — formulas match the Excel tracking sheet exactly
-// Weights stored in quintals; rates in ₹/quintal; Excel uses Kg & ₹/kg but results are identical
-// D = GrossAmt = netWeight(Qt) × purchaseRate(₹/Qt)
-// F = MCDeduction = IF(MC%>14, (MC%-14)/100 × D, 0)
-// E = BalanceCess = IF(cessApplicable=NO, -cessPaid, D×0.01 - cessPaid)
-// G = NetPayable = D - E - F
+// D  = GrossAmt (to supplier)  = netWeight(Qt) × purchaseRate(₹/Qt)
+// D' = SaleGross (from Sarvani) = netWeight(Qt) × saleRate(₹/Qt)
+// F  = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)   ← based on sale price
+// E  = BalanceCess = IF(cessYES, D'×0.01 − CessPaid, −CessPaid)  ← based on sale price
+// G  = NetPayable = D − E − F
 function calcDerived(r: any) {
   const gross = Number(r.grossWeight ?? 0)
   const tare = Number(r.tareWeight ?? 0)
@@ -36,19 +36,18 @@ function calcDerived(r: any) {
   const saleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
   const grossMargin = saleValue != null && purchaseValue != null ? saleValue - purchaseValue : null
 
-  // MC Deduction: only on excess moisture above 14%
+  // MC Deduction & Cess are calculated on sale price (what Sarvani pays us)
   const mc = Number(r.moisturePct ?? 0)
-  const mcDeduction = purchaseValue != null && mc > 14
-    ? ((mc - 14) / 100) * purchaseValue
+  const mcDeduction = saleValue != null && mc > 14
+    ? ((mc - 14) / 100) * saleValue
     : 0
 
-  // Balance Cess (fully calculated — no manual entry)
   const cessPaid = Number(r.cessPaid ?? 0)
-  const balanceCess = purchaseValue != null
-    ? (r.cessApplicable ? purchaseValue * 0.01 - cessPaid : -cessPaid)
+  const balanceCess = saleValue != null
+    ? (r.cessApplicable ? saleValue * 0.01 - cessPaid : -cessPaid)
     : null
 
-  // Net Payable to supplier = GrossAmt - BalanceCess - MCDeduction
+  // Net Payable to supplier = GrossAmt(purchase) − BalanceCess − MCDeduction
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction
     : null
@@ -370,13 +369,13 @@ export default function DeliveriesPage() {
       title: 'Cess Paid', key: 'cessPaid', width: 100,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return r.cessApplicable ? (
+        return (
           <InlineNum
             value={r.cessPaid}
             onSave={v => patch(r.id, { cessPaid: v })}
             prefix="₹"
           />
-        ) : <span style={{ color: '#ccc' }}>N/A</span>
+        )
       }
     },
     {

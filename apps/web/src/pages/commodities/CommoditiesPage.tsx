@@ -32,7 +32,7 @@ export default function CommoditiesPage() {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>Edit</Button>
-          <Popconfirm title="Deactivate this commodity?" onConfirm={() => remove(r.id).then(() => message.success('Commodity removed')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot remove'))}>
+          <Popconfirm title="Remove this commodity?" onConfirm={() => remove(r.id).then(() => message.success('Removed')).catch((e: any) => message.error(e?.response?.data?.error || 'Cannot remove'))}>
             <Button size="small" danger icon={<DeleteOutlined />}>Remove</Button>
           </Popconfirm>
         </Space>
@@ -47,10 +47,14 @@ export default function CommoditiesPage() {
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add Commodity</Button>
       </div>
       <Table dataSource={commodities} columns={columns} rowKey="id" loading={isLoading} />
-      <Modal title={editing ? 'Edit Commodity' : 'Add Commodity'} open={open} onOk={onSave} onCancel={() => { setOpen(false); setEditing(null) }}>
-        <Form form={form} layout="vertical">
-          <Form.Item label="Commodity Name" name="name" rules={[{ required: true }]}><Input placeholder="e.g. Maize (Yellow)" /></Form.Item>
-          <Form.Item label="Description" name="description"><Input.TextArea rows={2} /></Form.Item>
+      <Modal title={editing ? 'Edit Commodity' : 'Add Commodity'} open={open} onOk={onSave} onCancel={() => { setOpen(false); setEditing(null) }} width={420}>
+        <Form form={form} layout="vertical" size="small">
+          <Form.Item label="Commodity Name" name="name" rules={[{ required: true }]}>
+            <Input placeholder="e.g. Maize (Yellow)" />
+          </Form.Item>
+          <Form.Item label="Description" name="description">
+            <Input.TextArea rows={2} />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

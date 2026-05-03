@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, Typography, Tag, Popconfirm, message } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Space, Typography, Tag, Popconfirm, message, Row, Col } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useSalesOrders, useCreateSalesOrder, useUpdateSalesOrder, useDeleteSalesOrder, useCustomers, useCommodities } from '../../api/hooks'
 import { formatINR, formatQt } from '../../utils/format'
@@ -34,7 +34,7 @@ export default function SalesOrdersPage() {
 
   const columns = [
     { title: 'SO Number', dataIndex: 'soNumber', key: 'soNumber', render: (v: string) => <b>{v}</b> },
-    { title: 'Date', dataIndex: 'orderDate', key: 'date', render: (v: string) => dayjs(v).format('DD MMM YYYY') },
+    { title: 'Date', dataIndex: 'orderDate', key: 'date', render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer' },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity' },
     { title: 'Qty (Qt)', dataIndex: 'quantityOrdered', key: 'qty', render: formatQt },
@@ -64,23 +64,38 @@ export default function SalesOrdersPage() {
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>New Sales Order</Button>
       </div>
       <Table dataSource={orders} columns={columns} rowKey="id" loading={isLoading} />
-      <Modal title={editing ? 'Edit Sales Order' : 'New Sales Order'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={600}>
-        <Form form={form} layout="vertical">
-          <Form.Item label="Customer (Buyer)" name="customerId" rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp="label" options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
-          </Form.Item>
-          <Form.Item label="Commodity" name="commodityId" rules={[{ required: true }]}>
-            <Select options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} />
-          </Form.Item>
-          <Form.Item label="Order Date" name="orderDate" rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-          </Form.Item>
-          <Form.Item label="Quantity (Quintals)" name="quantityOrdered" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} step={0.001} />
-          </Form.Item>
-          <Form.Item label="Rate per Quintal (₹)" name="ratePerQuintal" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} step={0.01} />
-          </Form.Item>
+
+      <Modal title={editing ? 'Edit Sales Order' : 'New Sales Order'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={480}>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={12}>
+            <Col span={14}>
+              <Form.Item label="Customer (Buyer)" name="customerId" rules={[{ required: true }]}>
+                <Select showSearch optionFilterProp="label" options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
+              </Form.Item>
+            </Col>
+            <Col span={10}>
+              <Form.Item label="Commodity" name="commodityId" rules={[{ required: true }]}>
+                <Select options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={10}>
+              <Form.Item label="Order Date" name="orderDate" rules={[{ required: true }]}>
+                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+              </Form.Item>
+            </Col>
+            <Col span={7}>
+              <Form.Item label="Quantity (Qt)" name="quantityOrdered" rules={[{ required: true }]}>
+                <InputNumber min={0} style={{ width: '100%' }} step={0.001} />
+              </Form.Item>
+            </Col>
+            <Col span={7}>
+              <Form.Item label="Rate (₹/Qt)" name="ratePerQuintal" rules={[{ required: true }]}>
+                <InputNumber min={0} style={{ width: '100%' }} step={0.01} />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item label="Notes" name="notes"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>

@@ -50,18 +50,22 @@ interface ParsedRow {
 }
 
 // Formulas mirror Excel sheet exactly
-// D = GrossAmt = netWeight(Qt) × purchaseRate(₹/Qt)
-// F = MCDeduction = IF(MC%>14, (MC%-14)/100 × D, 0)
-// E = BalanceCess = IF(cessApplicable=NO, −cessPaid, D×0.01 − cessPaid)
-// G = NetPayable = D − E − F
+// D  = GrossAmt (to supplier)   = netWeight(Qt) × purchaseRate(₹/Qt)
+// D' = SaleGross (from Sarvani) = netWeight(Qt) × saleRate(₹/Qt)
+// F  = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)   ← sale price
+// E  = BalanceCess = IF(cessYES, D'×0.01 − CessPaid, −CessPaid)  ← sale price
+// G  = NetPayable = D − E − F
 function calcRow(r: ParsedRow) {
   const grossAmt = r.netWeight * (r.purchaseRate ?? 0)
+  const saleGross = r.netWeight * (r.saleRate ?? 0)
   const mc = r.mcPct ?? 0
-  const mcDeduction = mc > 14 ? ((mc - 14) / 100) * grossAmt : 0
+  const mcDeduction = saleGross > 0 && mc > 14 ? ((mc - 14) / 100) * saleGross : 0
   const cessPaid = r.cessPaid ?? 0
-  const balanceCess = r.cessApplicable ? grossAmt * 0.01 - cessPaid : -cessPaid
+  const balanceCess = saleGross > 0
+    ? (r.cessApplicable ? saleGross * 0.01 - cessPaid : -cessPaid)
+    : 0
   const netPayable = grossAmt - balanceCess - mcDeduction
-  return { grossAmt, mcDeduction, balanceCess, netPayable }
+  return { grossAmt, saleGross, mcDeduction, balanceCess, netPayable }
 }
 
 interface Props {
