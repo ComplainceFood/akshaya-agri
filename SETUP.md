@@ -1,4 +1,4 @@
-# Akshaya Agri Solutions — Setup Guide
+# Akshaya Agri Solutions - Setup Guide
 
 ## Prerequisites
 Make sure you have installed:
@@ -12,8 +12,8 @@ Make sure you have installed:
 
 ## Step 1: Install PostgreSQL
 1. Download and install PostgreSQL from https://www.postgresql.org/download/windows/
-2. During install, set a password for the "postgres" user — remember this password
-3. Default port is 5432 — leave it as is
+2. During install, set a password for the "postgres" user - remember this password
+3. Default port is 5432 - leave it as is
 
 ## Step 2: Create the Database
 1. Open "pgAdmin 4" (installed with PostgreSQL) OR open Command Prompt and run:
@@ -78,4 +78,4 @@ IMPORTANT: Change the admin password after first login via the Users page.
 Press Ctrl+C in each PowerShell window.
 
 ## Starting again next time
-Just repeat Step 7 — start both windows.
+Just repeat Step 7 - start both windows.

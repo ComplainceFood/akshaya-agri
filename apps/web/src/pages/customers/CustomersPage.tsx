@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, Popconfirm, message, Row, Col } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, Popconfirm, message, Row, Col, Divider, Checkbox } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../api/hooks'
 import { DEFAULT_STATE, DEFAULT_PAYMENT_TERMS_DAYS } from '../../utils/constants'
@@ -17,6 +17,7 @@ export default function CustomersPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [search, setSearch] = useState('')
+  const [sameAsBilling, setSameAsBilling] = useState(false)
   const [form] = Form.useForm()
 
   const { data: customers = [], isLoading } = useCustomers()
@@ -29,8 +30,13 @@ export default function CustomersPage() {
   const { mutateAsync: update } = useUpdateCustomer()
   const { mutateAsync: remove } = useDeleteCustomer()
 
-  function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
-  function openEdit(r: any) { setEditing(r); form.setFieldsValue(r); setOpen(true) }
+  function openAdd() { setEditing(null); form.resetFields(); setSameAsBilling(false); setOpen(true) }
+  function openEdit(r: any) {
+    setEditing(r)
+    form.setFieldsValue(r)
+    setSameAsBilling(!!r.shippingSameAsBilling)
+    setOpen(true)
+  }
 
   async function onSave() {
     const values = await form.validateFields()
@@ -45,8 +51,9 @@ export default function CustomersPage() {
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Contact Person', dataIndex: 'contactPerson', key: 'cp' },
     { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-    { title: 'GST Number', dataIndex: 'gstNumber', key: 'gst', render: (v: string) => v || '—' },
-    { title: 'Payment Terms', dataIndex: 'paymentTerms', key: 'pt', render: (v: number) => v ? `${v} days` : '—' },
+    { title: 'GST Number', dataIndex: 'gstNumber', key: 'gst', render: (v: string) => v || '-' },
+    { title: 'Bill To', key: 'billing', render: (_: any, r: any) => [r.billingVillage, r.billingDistrict, r.billingState].filter(Boolean).join(', ') || '-' },
+    { title: 'Payment Terms', dataIndex: 'paymentTerms', key: 'pt', render: (v: number) => v ? `${v} days` : '-' },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space>
@@ -71,7 +78,7 @@ export default function CustomersPage() {
       </div>
       <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
 
-      <Modal title={editing ? 'Edit Customer' : 'Add Customer'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={560}>
+      <Modal title={editing ? 'Edit Customer' : 'Add Customer'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={600}>
         <Form form={form} layout="vertical" size="small">
           <Row gutter={12}>
             <Col span={14}><Form.Item label="Company Name" name="name" rules={[{ required: true }]}><Input /></Form.Item></Col>
@@ -82,23 +89,50 @@ export default function CustomersPage() {
             <Col span={12}><Form.Item label="Email" name="email"><Input /></Form.Item></Col>
           </Row>
           <Row gutter={12}>
-            <Col span={8}><Form.Item label="Village" name="village"><Input /></Form.Item></Col>
-            <Col span={8}><Form.Item label="District" name="district"><Input /></Form.Item></Col>
-            <Col span={8}>
-              <Form.Item label="State" name="state" initialValue={DEFAULT_STATE}>
-                <Select showSearch optionFilterProp="label" options={INDIA_STATES.map(s => ({ value: s, label: s }))} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item label="Address" name="address"><Input /></Form.Item>
-          <Row gutter={12}>
-            <Col span={12}><Form.Item label="GST Number" name="gstNumber"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item label="GST Number" name="gstNumber"><Input placeholder="22AAAAA0000A1Z5" /></Form.Item></Col>
             <Col span={12}>
               <Form.Item label="Payment Terms (days)" name="paymentTerms" initialValue={DEFAULT_PAYMENT_TERMS_DAYS}>
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
           </Row>
+
+          <Divider orientation="left" orientationMargin={0} style={{ margin: '8px 0 4px' }}>Bill To Address</Divider>
+          <Row gutter={12}>
+            <Col span={8}><Form.Item label="Village" name="billingVillage"><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item label="District" name="billingDistrict"><Input /></Form.Item></Col>
+            <Col span={8}>
+              <Form.Item label="State" name="billingState" initialValue={DEFAULT_STATE}>
+                <Select showSearch optionFilterProp="label" options={INDIA_STATES.map(s => ({ value: s, label: s }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="Street / Door No." name="billingAddress"><Input /></Form.Item>
+
+          <Divider orientation="left" orientationMargin={0} style={{ margin: '8px 0 4px' }}>Ship To Address</Divider>
+          <Form.Item name="shippingSameAsBilling" valuePropName="checked" style={{ marginBottom: 8 }}>
+            <Checkbox onChange={e => {
+              setSameAsBilling(e.target.checked)
+              if (e.target.checked) {
+                const v = form.getFieldsValue(['billingVillage', 'billingDistrict', 'billingState', 'billingAddress'])
+                form.setFieldsValue({ shippingVillage: v.billingVillage, shippingDistrict: v.billingDistrict, shippingState: v.billingState, shippingAddress: v.billingAddress })
+              }
+            }}>Same as Bill To</Checkbox>
+          </Form.Item>
+          {!sameAsBilling && (
+            <>
+              <Row gutter={12}>
+                <Col span={8}><Form.Item label="Village" name="shippingVillage"><Input /></Form.Item></Col>
+                <Col span={8}><Form.Item label="District" name="shippingDistrict"><Input /></Form.Item></Col>
+                <Col span={8}>
+                  <Form.Item label="State" name="shippingState" initialValue={DEFAULT_STATE}>
+                    <Select showSearch optionFilterProp="label" options={INDIA_STATES.map(s => ({ value: s, label: s }))} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item label="Street / Door No." name="shippingAddress"><Input /></Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
     </div>

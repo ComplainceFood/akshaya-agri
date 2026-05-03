@@ -20,8 +20,8 @@ export default function ReportsPage() {
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity' },
     { title: 'Weight (Qt)', dataIndex: 'adjustedWeight', key: 'weight', render: formatQt },
     { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', render: (v: number) => formatINR(v) },
-    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', render: (v: number) => v ? formatINR(v) : '—' },
-    { title: 'Margin', dataIndex: 'grossMargin', key: 'margin', render: (v: number) => v != null ? <span style={{ color: v >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(v)}</span> : '—' },
+    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', render: (v: number) => v ? formatINR(v) : '-' },
+    { title: 'Margin', dataIndex: 'grossMargin', key: 'margin', render: (v: number) => v != null ? <span style={{ color: v >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(v)}</span> : '-' },
   ]
 
   const stockColumns = [

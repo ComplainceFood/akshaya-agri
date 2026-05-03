@@ -130,7 +130,7 @@ export const useUpdateDelivery = () => {
   return useMutation({
     mutationFn: ({ id, ...data }: any) => api.put(`/deliveries/${id}`, data).then(r => r.data),
     onSuccess: (updated) => {
-      // Patch the cached list in-place — avoids a full refetch on every inline edit
+      // Patch the cached list in-place - avoids a full refetch on every inline edit
       qc.setQueriesData({ queryKey: ['deliveries'] }, (old: any) =>
         Array.isArray(old) ? old.map((d: any) => d.id === updated.id ? { ...d, ...updated } : d) : old
       )
@@ -168,7 +168,7 @@ export const useCreateCustomerReceipt = () => {
 export const useCustomerLedger = (customerId: string) =>
   useQuery({ queryKey: ['customer-ledger', customerId], queryFn: () => api.get(`/payments/customer/${customerId}/ledger`).then(r => r.data), enabled: !!customerId })
 
-// Daily Rate lookup — used by deliveries form to auto-fill rates
+// Daily Rate lookup - used by deliveries form to auto-fill rates
 export const useDailyRates = (date: string | null, commodityId: string | null) =>
   useQuery({
     queryKey: ['daily-rates', date, commodityId],

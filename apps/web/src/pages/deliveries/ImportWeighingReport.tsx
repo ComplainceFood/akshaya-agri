@@ -42,7 +42,7 @@ interface ParsedRow {
   // cess
   cessApplicable: boolean
   cessPaid?: number       // ₹ paid so far
-  // balanceCess is fully calculated — not user-entered
+  // balanceCess is fully calculated - not user-entered
   // moisture / quality
   mcPct?: number          // MC content %
   qualityDeductionPct?: number
@@ -214,7 +214,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
   const errorCount = rows.filter(r => r.status === 'error').length
   const pendingCount = rows.filter(r => r.status !== 'saved').length
 
-  const fmtAmt = (n: number) => n ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'
+  const fmtAmt = (n: number) => n ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '-'
 
   const columns = [
     {
@@ -270,7 +270,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       title: 'Gross Amt', key: 'grossAmt', width: 100,
       render: (_: any, r: ParsedRow) => {
         const { grossAmt } = calcRow(r)
-        return <Text style={{ fontSize: 12, color: grossAmt ? '#000' : '#aaa' }}>{grossAmt ? fmtAmt(grossAmt) : '—'}</Text>
+        return <Text style={{ fontSize: 12, color: grossAmt ? '#000' : '#aaa' }}>{grossAmt ? fmtAmt(grossAmt) : '-'}</Text>
       }
     },
     {
@@ -293,7 +293,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       title: 'Bal Cess (E)', key: 'balCess', width: 105,
       render: (_: any, r: ParsedRow) => {
         const { balanceCess } = calcRow(r)
-        if (!r.purchaseRate) return <Text style={{ color: '#ccc', fontSize: 12 }}>—</Text>
+        if (!r.purchaseRate) return <Text style={{ color: '#ccc', fontSize: 12 }}>-</Text>
         return (
           <Text style={{ fontSize: 12, color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
             {balanceCess >= 0 ? `₹${balanceCess.toFixed(0)}` : `-₹${Math.abs(balanceCess).toFixed(0)}`}
@@ -313,14 +313,14 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       title: 'MC Deduction', key: 'mcDed', width: 105,
       render: (_: any, r: ParsedRow) => {
         const { mcDeduction } = calcRow(r)
-        return <Text style={{ fontSize: 12, color: mcDeduction ? '#cf1322' : '#aaa' }}>{mcDeduction ? fmtAmt(mcDeduction) : '—'}</Text>
+        return <Text style={{ fontSize: 12, color: mcDeduction ? '#cf1322' : '#aaa' }}>{mcDeduction ? fmtAmt(mcDeduction) : '-'}</Text>
       }
     },
     {
       title: 'Net Payable', key: 'netPay', width: 105,
       render: (_: any, r: ParsedRow) => {
         const { netPayable, grossAmt } = calcRow(r)
-        return <Text strong style={{ fontSize: 12, color: grossAmt ? '#389e0d' : '#aaa' }}>{grossAmt ? fmtAmt(netPayable) : '—'}</Text>
+        return <Text strong style={{ fontSize: 12, color: grossAmt ? '#389e0d' : '#aaa' }}>{grossAmt ? fmtAmt(netPayable) : '-'}</Text>
       }
     },
     {

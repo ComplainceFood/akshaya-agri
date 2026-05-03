@@ -45,8 +45,8 @@ export default function SuppliersPage() {
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Contact Person', dataIndex: 'contactPerson', key: 'cp' },
     { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-    { title: 'Village / District', key: 'loc', render: (_: any, r: any) => [r.village, r.district].filter(Boolean).join(', ') || '—' },
-    { title: 'Bank', dataIndex: 'bankName', key: 'bank', render: (v: string) => v || '—' },
+    { title: 'Village / District', key: 'loc', render: (_: any, r: any) => [r.village, r.district].filter(Boolean).join(', ') || '-' },
+    { title: 'Bank', dataIndex: 'bankName', key: 'bank', render: (v: string) => v || '-' },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space>

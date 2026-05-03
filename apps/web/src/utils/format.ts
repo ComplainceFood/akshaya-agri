@@ -1,5 +1,5 @@
 export function formatINR(amount: number | string | null | undefined): string {
-  if (amount == null) return '—'
+  if (amount == null) return '-'
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
@@ -9,7 +9,7 @@ export function formatINR(amount: number | string | null | undefined): string {
 }
 
 export function formatQt(value: number | string | null | undefined): string {
-  if (value == null) return '—'
+  if (value == null) return '-'
   return `${Number(Number(value).toFixed(3)).toLocaleString('en-IN')} Qt`
 }
 

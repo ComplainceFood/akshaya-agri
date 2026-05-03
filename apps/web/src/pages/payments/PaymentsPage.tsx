@@ -109,7 +109,7 @@ export default function PaymentsPage() {
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', render: (v: number) => formatINR(v) },
     { title: 'Mode', dataIndex: 'paymentMode', key: 'mode' },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || '—' },
+    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || '-' },
   ]
 
   const crColumns = [
@@ -118,7 +118,7 @@ export default function PaymentsPage() {
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', render: (v: number) => formatINR(v) },
     { title: 'Mode', dataIndex: 'paymentMode', key: 'mode' },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || '—' },
+    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || '-' },
   ]
 
   return (

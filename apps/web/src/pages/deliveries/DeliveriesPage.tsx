@@ -44,19 +44,19 @@ function DeliveryDetail({ id }: { id: string }) {
   const calc = calcDerived(d)
   return (
     <Descriptions bordered size="small" column={2}>
-      <Descriptions.Item label="Slip No.">{d.lrNumber || '—'}</Descriptions.Item>
+      <Descriptions.Item label="Slip No.">{d.lrNumber || '-'}</Descriptions.Item>
       <Descriptions.Item label="System LR No.">{d.deliveryNumber}</Descriptions.Item>
       <Descriptions.Item label="Date">{dayjs(d.deliveryDate).format('DD/MM/YYYY')}</Descriptions.Item>
       <Descriptions.Item label="Vehicle">{d.vehicleNumber}</Descriptions.Item>
-      <Descriptions.Item label="Supplier">{d.supplier?.name || '—'}</Descriptions.Item>
-      <Descriptions.Item label="Commodity">{d.commodity?.name || '—'}</Descriptions.Item>
+      <Descriptions.Item label="Supplier">{d.supplier?.name || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Commodity">{d.commodity?.name || '-'}</Descriptions.Item>
       <Descriptions.Item label="Gross Weight">{qtToKg(d.grossWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
       <Descriptions.Item label="Tare Weight">{qtToKg(d.tareWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
       <Descriptions.Item label="Net Weight (A)"><b>{qtToKg(calc.netWeight)?.toLocaleString('en-IN')} Kg</b></Descriptions.Item>
       <Descriptions.Item label="Quality Deduction">{d.qualityDeductionPct ?? 0}%</Descriptions.Item>
       <Descriptions.Item label="Purchase Rate (B)">₹{Number(d.purchaseRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>
       <Descriptions.Item label="Gross Amt (D = A×B)"><b>{formatINR(calc.purchaseValue)}</b></Descriptions.Item>
-      <Descriptions.Item label="MC Content %">{d.moisturePct ? `${d.moisturePct}%` : '—'}</Descriptions.Item>
+      <Descriptions.Item label="MC Content %">{d.moisturePct ? `${d.moisturePct}%` : '-'}</Descriptions.Item>
       <Descriptions.Item label="MC Deduction (F)">
         <span style={{ color: calc.mcDeduction > 0 ? '#cf1322' : undefined }}>
           {calc.mcDeduction > 0 ? formatINR(calc.mcDeduction) : `₹0 (MC ≤ ${MC_THRESHOLD_PCT}%)`}
@@ -66,14 +66,14 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Cess Paid (C)">{formatINR(d.cessPaid ?? 0)}</Descriptions.Item>
       <Descriptions.Item label="Balance Cess (E)" span={2}>
         <span style={{ color: calc.balanceCess != null && calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
-          {calc.balanceCess != null ? formatINR(calc.balanceCess) : '—'}
+          {calc.balanceCess != null ? formatINR(calc.balanceCess) : '-'}
           <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>
             {d.cessApplicable ? `(${CESS_RATE * 100}% of Sale − Cess Paid)` : '(−Cess Paid)'}
           </span>
         </span>
       </Descriptions.Item>
       <Descriptions.Item label="Net Payable (G = D−E−F)" span={2}>
-        <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '—'}</b>
+        <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '-'}</b>
       </Descriptions.Item>
       {d.saleRate && <Descriptions.Item label="Sale Rate">₹{Number(d.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>}
       {calc.saleValue != null && <Descriptions.Item label="Sale Value">{formatINR(calc.saleValue)}</Descriptions.Item>}
@@ -102,7 +102,7 @@ function InlineText({ value, onSave, placeholder, bold }: {
   return (
     <Tooltip title="Click to edit">
       <span onClick={start} style={{ cursor: 'pointer', borderBottom: '1px dashed #aaa', fontWeight: bold ? 600 : undefined, whiteSpace: 'nowrap', color: value ? undefined : '#bbb' }}>
-        {value || <span style={{ color: '#bbb' }}>{placeholder ?? '—'}</span>}
+        {value || <span style={{ color: '#bbb' }}>{placeholder ?? '-'}</span>}
       </span>
     </Tooltip>
   )
@@ -124,7 +124,7 @@ function InlineNum({ value, onSave, min = 0, step = 1, prefix, suffix, style, de
   return (
     <Tooltip title="Click to edit">
       <span onClick={start} style={{ cursor: 'pointer', borderBottom: '1px dashed #aaa', whiteSpace: 'nowrap', ...style }}>
-        {display ?? <span style={{ color: '#bbb' }}>—</span>}
+        {display ?? <span style={{ color: '#bbb' }}>-</span>}
       </span>
     </Tooltip>
   )
@@ -159,7 +159,7 @@ export default function DeliveriesPage() {
 
   const row = useCallback((r: any) => ({ ...r, ...(overrides[r.id] ?? {}) }), [overrides])
 
-  // Pre-compute derived values for every row once per render — avoids 8× calcDerived per row per render
+  // Pre-compute derived values for every row once per render - avoids 8× calcDerived per row per render
   const derivedMap = useMemo(() => {
     const map = new Map<string, ReturnType<typeof calcDerived>>()
     for (const r of deliveries) {
@@ -282,7 +282,7 @@ export default function DeliveriesPage() {
       title: 'Slip No.', key: 'slip', width: 85, fixed: 'left' as const,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return <InlineText value={r.lrNumber} onSave={v => patch(r.id, { lrNumber: v })} placeholder="—" bold />
+        return <InlineText value={r.lrNumber} onSave={v => patch(r.id, { lrNumber: v })} placeholder="-" bold />
       }
     },
     { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 95, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
@@ -290,7 +290,7 @@ export default function DeliveriesPage() {
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 130 },
     {
       title: 'Net Wt (Kg)', key: 'netWt', width: 100,
-      render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '—'}</b>
+      render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '-'}</b>
     },
     {
       title: 'Rate (₹/Qt)', key: 'rate', width: 105,
@@ -314,7 +314,7 @@ export default function DeliveriesPage() {
       title: 'MC Ded.', key: 'mcDed', width: 95,
       render: (_: any, raw: any) => {
         const { mcDeduction } = derivedMap.get(raw.id) ?? { mcDeduction: 0 }
-        return mcDeduction > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(mcDeduction)}</span> : <span style={{ color: '#ccc' }}>—</span>
+        return mcDeduction > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(mcDeduction)}</span> : <span style={{ color: '#ccc' }}>-</span>
       }
     },
     {
@@ -335,7 +335,7 @@ export default function DeliveriesPage() {
       title: 'Bal. Cess', key: 'balCess', width: 105,
       render: (_: any, raw: any) => {
         const { balanceCess } = derivedMap.get(raw.id) ?? {}
-        if (balanceCess == null) return <span style={{ color: '#ccc' }}>—</span>
+        if (balanceCess == null) return <span style={{ color: '#ccc' }}>-</span>
         return <span style={{ color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>{formatINR(balanceCess)}</span>
       }
     },
@@ -343,21 +343,21 @@ export default function DeliveriesPage() {
       title: 'Net Payable', key: 'netPay', width: 115,
       render: (_: any, raw: any) => {
         const { netPayable } = derivedMap.get(raw.id) ?? {}
-        return netPayable != null ? <b style={{ color: '#1677ff' }}>{formatINR(netPayable)}</b> : <span style={{ color: '#ccc' }}>—</span>
+        return netPayable != null ? <b style={{ color: '#1677ff' }}>{formatINR(netPayable)}</b> : <span style={{ color: '#ccc' }}>-</span>
       }
     },
     {
       title: 'Sale Value', key: 'sv', width: 110,
       render: (_: any, raw: any) => {
         const { saleValue } = derivedMap.get(raw.id) ?? {}
-        return saleValue != null ? formatINR(saleValue) : '—'
+        return saleValue != null ? formatINR(saleValue) : '-'
       }
     },
     {
       title: 'Margin', key: 'margin', width: 105,
       render: (_: any, raw: any) => {
         const { grossMargin } = derivedMap.get(raw.id) ?? {}
-        if (grossMargin == null) return <span style={{ color: '#ccc' }}>—</span>
+        if (grossMargin == null) return <span style={{ color: '#ccc' }}>-</span>
         return <b style={{ color: grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{formatINR(grossMargin)}</b>
       }
     },

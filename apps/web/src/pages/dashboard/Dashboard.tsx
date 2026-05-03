@@ -33,10 +33,10 @@ export default function Dashboard() {
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle' },
     { title: 'Net Wt', dataIndex: 'adjustedWeight', key: 'wt', render: (v: number) => fmtKg(v ?? 0) },
     { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', render: (v: number) => formatINR(v) },
-    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', render: (v: number) => v ? formatINR(v) : '—' },
+    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', render: (v: number) => v ? formatINR(v) : '-' },
     { title: 'Margin', key: 'margin', render: (_: any, r: any) => {
       const m = Number(r.saleValue ?? 0) - Number(r.purchaseValue ?? 0)
-      return r.saleValue ? <span style={{ color: m >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(m)}</span> : '—'
+      return r.saleValue ? <span style={{ color: m >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(m)}</span> : '-'
     }},
   ]
 
@@ -64,7 +64,7 @@ export default function Dashboard() {
 
       {/* ── Today ── */}
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-        TODAY — {dayjs().format('DD MMM YYYY')}
+        TODAY - {dayjs().format('DD MMM YYYY')}
       </Typography.Text>
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} lg={4}>
@@ -88,7 +88,7 @@ export default function Dashboard() {
 
       {/* ── This Month ── */}
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-        THIS MONTH — {dayjs().format('MMM YYYY')}
+        THIS MONTH - {dayjs().format('MMM YYYY')}
       </Typography.Text>
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} lg={4}>
@@ -119,7 +119,7 @@ export default function Dashboard() {
       {data.overall && (
         <>
           <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-            OVERALL — ALL TIME
+            OVERALL - ALL TIME
           </Typography.Text>
           <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
             <Col xs={12} sm={8} lg={4}>

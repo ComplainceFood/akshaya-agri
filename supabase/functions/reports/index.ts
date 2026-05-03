@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
     return json({ deliveries, totalPurchase, totalSale, totalMargin })
   }
 
-  // GET /reports/stock — commodity-level stock summary from deliveries
+  // GET /reports/stock - commodity-level stock summary from deliveries
   if (req.method === 'GET' && report === 'stock') {
     const { data: deliveries } = await db.from('Delivery')
       .select('adjustedWeight, purchaseValue, saleValue, commodity:Commodity(id,name)')

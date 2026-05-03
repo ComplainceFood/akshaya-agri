@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     return json(data)
   }
 
-  // POST — upsert so setting rate twice on same day just updates
+  // POST - upsert so setting rate twice on same day just updates
   if (req.method === 'POST') {
     const body = await req.json()
     const now = new Date().toISOString()

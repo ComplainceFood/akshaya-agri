@@ -17,7 +17,7 @@ function InlineNum({ value, onSave, min = 0, step = 1, prefix, decimals = 0 }: {
     return <InputNumber autoFocus size="small" min={min} step={step} value={draft}
       onChange={v => setDraft(v)} onBlur={commit} onPressEnter={commit} style={{ width: 100 }} />
   }
-  const display = value != null ? `${prefix ?? ''}${Number(value).toLocaleString('en-IN', { maximumFractionDigits: decimals })}` : '—'
+  const display = value != null ? `${prefix ?? ''}${Number(value).toLocaleString('en-IN', { maximumFractionDigits: decimals })}` : '-'
   return (
     <Tooltip title="Click to edit">
       <span onClick={start} style={{ cursor: 'pointer', borderBottom: '1px dashed #aaa', whiteSpace: 'nowrap' }}>{display}</span>

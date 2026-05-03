@@ -26,8 +26,8 @@ export default function CommoditiesPage() {
 
   const columns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
-    { title: 'HSN Code', dataIndex: 'hsnCode', key: 'hsn', render: (v: string) => v ? <code>{v}</code> : '—' },
-    { title: 'Description', dataIndex: 'description', key: 'desc', render: (v: string) => v || '—' },
+    { title: 'HSN Code', dataIndex: 'hsnCode', key: 'hsn', render: (v: string) => v ? <code>{v}</code> : '-' },
+    { title: 'Description', dataIndex: 'description', key: 'desc', render: (v: string) => v || '-' },
     { title: 'Status', dataIndex: 'isActive', key: 'status', render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? 'Active' : 'Inactive'}</Tag> },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
