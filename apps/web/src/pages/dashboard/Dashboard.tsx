@@ -30,7 +30,6 @@ export default function Dashboard() {
     { title: 'Slip No.', dataIndex: 'lrNumber', key: 'lr', render: (v: string, r: any) => v || r.deliveryNumber },
     { title: 'Date', dataIndex: 'deliveryDate', key: 'date', render: (v: string) => dayjs(v).format('DD/MM/YY') },
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', ellipsis: true },
-    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', ellipsis: true, render: (v: string) => v || '—' },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle' },
     { title: 'Net Wt', dataIndex: 'adjustedWeight', key: 'wt', render: (v: number) => fmtKg(v ?? 0) },
     { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', render: (v: number) => formatINR(v) },
