@@ -156,6 +156,15 @@ export default function DeliveriesPage() {
 
   const row = useCallback((r: any) => ({ ...r, ...(overrides[r.id] ?? {}) }), [overrides])
 
+  // Pre-compute derived values for every row once per render — avoids 8× calcDerived per row per render
+  const derivedMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof calcDerived>>()
+    for (const r of deliveries) {
+      map.set(r.id, calcDerived(row(r)))
+    }
+    return map
+  }, [deliveries, overrides])
+
   const filteredDeliveries = useMemo(() => {
     let rows = [...deliveries]
     if (filterSupplier) rows = rows.filter((r: any) => r.supplierId === filterSupplier)
@@ -265,7 +274,7 @@ export default function DeliveriesPage() {
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 130 },
     {
       title: 'Net Wt (Kg)', key: 'netWt', width: 100,
-      render: (_: any, raw: any) => <b>{qtToKg(calcDerived(row(raw)).netWeight)?.toLocaleString('en-IN') ?? '—'}</b>
+      render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '—'}</b>
     },
     {
       title: 'Rate (₹/Qt)', key: 'rate', width: 105,
@@ -276,7 +285,7 @@ export default function DeliveriesPage() {
     },
     {
       title: 'Purchase Value', key: 'pv', width: 120,
-      render: (_: any, raw: any) => formatINR(calcDerived(row(raw)).purchaseValue)
+      render: (_: any, raw: any) => formatINR(derivedMap.get(raw.id)?.purchaseValue)
     },
     {
       title: 'MC %', key: 'mc', width: 75,
@@ -288,7 +297,7 @@ export default function DeliveriesPage() {
     {
       title: 'MC Ded.', key: 'mcDed', width: 95,
       render: (_: any, raw: any) => {
-        const { mcDeduction } = calcDerived(row(raw))
+        const { mcDeduction } = derivedMap.get(raw.id) ?? { mcDeduction: 0 }
         return mcDeduction > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(mcDeduction)}</span> : <span style={{ color: '#ccc' }}>—</span>
       }
     },
@@ -309,7 +318,7 @@ export default function DeliveriesPage() {
     {
       title: 'Bal. Cess', key: 'balCess', width: 105,
       render: (_: any, raw: any) => {
-        const { balanceCess } = calcDerived(row(raw))
+        const { balanceCess } = derivedMap.get(raw.id) ?? {}
         if (balanceCess == null) return <span style={{ color: '#ccc' }}>—</span>
         return <span style={{ color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>{formatINR(balanceCess)}</span>
       }
@@ -317,21 +326,21 @@ export default function DeliveriesPage() {
     {
       title: 'Net Payable', key: 'netPay', width: 115,
       render: (_: any, raw: any) => {
-        const { netPayable } = calcDerived(row(raw))
+        const { netPayable } = derivedMap.get(raw.id) ?? {}
         return netPayable != null ? <b style={{ color: '#1677ff' }}>{formatINR(netPayable)}</b> : <span style={{ color: '#ccc' }}>—</span>
       }
     },
     {
       title: 'Sale Value', key: 'sv', width: 110,
       render: (_: any, raw: any) => {
-        const { saleValue } = calcDerived(row(raw))
+        const { saleValue } = derivedMap.get(raw.id) ?? {}
         return saleValue != null ? formatINR(saleValue) : '—'
       }
     },
     {
       title: 'Margin', key: 'margin', width: 105,
       render: (_: any, raw: any) => {
-        const { grossMargin } = calcDerived(row(raw))
+        const { grossMargin } = derivedMap.get(raw.id) ?? {}
         if (grossMargin == null) return <span style={{ color: '#ccc' }}>—</span>
         return <b style={{ color: grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{formatINR(grossMargin)}</b>
       }

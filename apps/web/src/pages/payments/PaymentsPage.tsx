@@ -4,7 +4,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import {
   useSupplierPayments, useCreateSupplierPayment, useSupplierLedger,
   useCustomerReceipts, useCreateCustomerReceipt, useCustomerLedger,
-  useSuppliers, useCustomers
+  useSuppliers, useCustomers,
 } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
 import dayjs from 'dayjs'
@@ -35,9 +35,7 @@ function CustomerLedger({ customerId }: { customerId: string }) {
   )
 }
 
-function PaymentForm({ namePrefix }: { namePrefix: 'supplier' | 'customer' }) {
-  const { data: suppliers = [] } = useSuppliers()
-  const { data: customers = [] } = useCustomers()
+function PaymentForm({ namePrefix, suppliers, customers }: { namePrefix: 'supplier' | 'customer'; suppliers: any[]; customers: any[] }) {
   const isSupplier = namePrefix === 'supplier'
   return (
     <>
@@ -164,10 +162,10 @@ export default function PaymentsPage() {
       ]} />
 
       <Modal title="Record Supplier Payment" open={supplierOpen} onOk={saveSP} onCancel={() => setSupplierOpen(false)} width={460}>
-        <Form form={spForm} layout="vertical" size="small"><PaymentForm namePrefix="supplier" /></Form>
+        <Form form={spForm} layout="vertical" size="small"><PaymentForm namePrefix="supplier" suppliers={suppliers} customers={customers} /></Form>
       </Modal>
       <Modal title="Record Customer Receipt" open={customerOpen} onOk={saveCR} onCancel={() => setCustomerOpen(false)} width={460}>
-        <Form form={crForm} layout="vertical" size="small"><PaymentForm namePrefix="customer" /></Form>
+        <Form form={crForm} layout="vertical" size="small"><PaymentForm namePrefix="customer" suppliers={suppliers} customers={customers} /></Form>
       </Modal>
     </div>
   )

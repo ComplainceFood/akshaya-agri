@@ -158,42 +158,49 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
 
   async function saveAll() {
     setSaving(true)
-    let saved = 0, errors = 0
-    const updated = [...rows]
-    for (let i = 0; i < updated.length; i++) {
-      const r = updated[i]
-      if (r.status === 'saved') continue
-      const { mcDeduction } = calcRow(r)
-      try {
-        await createDelivery({
-          deliveryDate: parseDate(r.outDate),
-          vehicleNumber: r.vehicleNumber || 'N/A',
-          supplierId: r.supplierId,
-          purchaseOrderId: r.purchaseOrderId,
-          customerId: r.customerId || null,
-          salesOrderId: r.salesOrderId || null,
-          grossWeight: r.grossWeight,
-          tareWeight: r.tareWeight,
-          purchaseRate: r.purchaseRate,
-          saleRate: r.saleRate || null,
-          moisturePct: r.mcPct || null,
-          qualityDeductionPct: r.qualityDeductionPct || 0,
-          cessApplicable: r.cessApplicable,
-          cessPaid: r.cessApplicable ? (r.cessPaid ?? null) : null,
-          balanceCess: null, // calculated server-side on save
-          lrNumber: r.challanNo,
-          notes: `Imported from Sarvani weighing report. Challan: ${r.challanNo}`,
-          status: 'COMPLETED',
-        })
-        updated[i] = { ...r, status: 'saved' }
-        saved++
-      } catch (e: any) {
-        updated[i] = { ...r, status: 'error', error: e?.response?.data?.error || e.message }
-        errors++
-      }
-      setRows([...updated])
-    }
+    const pending = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.status !== 'saved')
+
+    const results = await Promise.allSettled(
+      pending.map(({ r }) => createDelivery({
+        deliveryDate: parseDate(r.outDate),
+        vehicleNumber: r.vehicleNumber || 'N/A',
+        supplierId: r.supplierId,
+        purchaseOrderId: r.purchaseOrderId,
+        customerId: r.customerId || null,
+        salesOrderId: r.salesOrderId || null,
+        grossWeight: r.grossWeight,
+        tareWeight: r.tareWeight,
+        purchaseRate: r.purchaseRate,
+        saleRate: r.saleRate || null,
+        moisturePct: r.mcPct || null,
+        qualityDeductionPct: r.qualityDeductionPct || 0,
+        cessApplicable: r.cessApplicable,
+        cessPaid: r.cessApplicable ? (r.cessPaid ?? null) : null,
+        lrNumber: r.challanNo,
+        notes: `Imported from Sarvani weighing report. Challan: ${r.challanNo}`,
+        status: 'COMPLETED',
+      }))
+    )
+
+    // Single state update after all requests complete
+    setRows(prev => {
+      const next = [...prev]
+      pending.forEach(({ i }, idx) => {
+        const result = results[idx]
+        if (result.status === 'fulfilled') {
+          next[i] = { ...next[i], status: 'saved' }
+        } else {
+          const err = (result.reason as any)?.response?.data?.error || (result.reason as any)?.message || 'Error'
+          next[i] = { ...next[i], status: 'error', error: err }
+        }
+      })
+      return next
+    })
+
+    const saved = results.filter(r => r.status === 'fulfilled').length
+    const errors = results.filter(r => r.status === 'rejected').length
     setSaving(false)
+
     if (errors === 0) {
       message.success(`${saved} deliveries imported successfully`)
       setStep(2)

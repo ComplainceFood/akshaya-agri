@@ -106,7 +106,16 @@ export const useCreateDelivery = () => {
 }
 export const useUpdateDelivery = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: ({ id, ...data }: any) => api.put(`/deliveries/${id}`, data).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['deliveries'] }) })
+  return useMutation({
+    mutationFn: ({ id, ...data }: any) => api.put(`/deliveries/${id}`, data).then(r => r.data),
+    onSuccess: (updated) => {
+      // Patch the cached list in-place — avoids a full refetch on every inline edit
+      qc.setQueriesData({ queryKey: ['deliveries'] }, (old: any) =>
+        Array.isArray(old) ? old.map((d: any) => d.id === updated.id ? { ...d, ...updated } : d) : old
+      )
+      qc.setQueryData(['delivery', updated.id], updated)
+    },
+  })
 }
 export const useDeleteDelivery = () => {
   const qc = useQueryClient()
