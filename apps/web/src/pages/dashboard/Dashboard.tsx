@@ -1,4 +1,4 @@
-import { Row, Col, Card, Statistic, Table, Tag, Typography, Spin, Divider, Progress } from 'antd'
+import { Row, Col, Card, Statistic, Table, Typography, Spin, Progress } from 'antd'
 import {
   ArrowUpOutlined, CarOutlined,
   TeamOutlined, UserOutlined, RiseOutlined, FallOutlined,
@@ -9,7 +9,6 @@ import { QT_TO_KG } from '../../utils/constants'
 import dayjs from 'dayjs'
 
 const fmtKg = (qt: number) => `${(qt * QT_TO_KG).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Kg`
-const fmtQt = (qt: number) => `${Number(qt.toFixed(3)).toLocaleString('en-IN')} Qt`
 
 function StatCard({ title, value, color, prefix, suffix }: { title: string; value: string; color?: string; prefix?: React.ReactNode; suffix?: string }) {
   return (
@@ -119,36 +118,29 @@ export default function Dashboard() {
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
         OVERALL — ALL TIME
       </Typography.Text>
-      <Row gutter={[12, 12]} style={{ marginBottom: 8 }}>
-        <Col xs={12} sm={8} lg={4}>
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+        <Col xs={12} sm={8} lg={3}>
           <StatCard title="Deliveries" value={String(data.overall?.deliveryCount ?? 0)} prefix={<CarOutlined />} />
         </Col>
-        <Col xs={12} sm={8} lg={5}>
+        <Col xs={12} sm={8} lg={3}>
           <StatCard title="Weight In" value={fmtKg(data.overall?.totalWeightQt ?? 0)} />
         </Col>
-        <Col xs={12} sm={8} lg={5}>
+        <Col xs={12} sm={8} lg={4}>
           <StatCard title="Purchase Value" value={formatINR(data.overall?.purchaseValue ?? 0)} />
         </Col>
-        <Col xs={12} sm={8} lg={5}>
+        <Col xs={12} sm={8} lg={4}>
           <StatCard title="Sale Value" value={formatINR(data.overall?.saleValue ?? 0)} color="#2e7d32" />
         </Col>
-        <Col xs={12} sm={8} lg={5}>
+        <Col xs={12} sm={8} lg={3}>
           <StatCard title="Margin" value={formatINR(data.overall?.margin ?? 0)}
             color={(data.overall?.margin ?? 0) >= 0 ? '#2e7d32' : '#cf1322'}
             prefix={(data.overall?.margin ?? 0) >= 0 ? <RiseOutlined /> : <FallOutlined />} />
         </Col>
-      </Row>
-      <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-        <Col xs={12} sm={8}>
-          <StatCard title="Total Payable (Suppliers)" value={formatINR(data.totalPayable)} color="#cf1322" prefix={<FallOutlined />} />
+        <Col xs={12} sm={8} lg={3}>
+          <StatCard title="Payable" value={formatINR(data.totalPayable)} color="#cf1322" prefix={<FallOutlined />} />
         </Col>
-        <Col xs={12} sm={8}>
-          <StatCard title="Total Receivable (Buyers)" value={formatINR(data.totalReceivable)} color="#2e7d32" prefix={<ArrowUpOutlined />} />
-        </Col>
-        <Col xs={12} sm={8}>
-          <StatCard title="Net Position" value={formatINR(data.totalReceivable - data.totalPayable)}
-            color={(data.totalReceivable - data.totalPayable) >= 0 ? '#2e7d32' : '#cf1322'}
-            prefix={<ArrowUpOutlined />} />
+        <Col xs={12} sm={8} lg={4}>
+          <StatCard title="Receivable" value={formatINR(data.totalReceivable)} color="#2e7d32" prefix={<ArrowUpOutlined />} />
         </Col>
       </Row>
 
