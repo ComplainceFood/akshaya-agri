@@ -26,6 +26,7 @@ export default function CommoditiesPage() {
 
   const columns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
+    { title: 'HSN Code', dataIndex: 'hsnCode', key: 'hsn', render: (v: string) => v ? <code>{v}</code> : '—' },
     { title: 'Description', dataIndex: 'description', key: 'desc', render: (v: string) => v || '—' },
     { title: 'Status', dataIndex: 'isActive', key: 'status', render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? 'Active' : 'Inactive'}</Tag> },
     {
@@ -51,6 +52,9 @@ export default function CommoditiesPage() {
         <Form form={form} layout="vertical" size="small">
           <Form.Item label="Commodity Name" name="name" rules={[{ required: true }]}>
             <Input placeholder="e.g. Maize (Yellow)" />
+          </Form.Item>
+          <Form.Item label="HSN Code" name="hsnCode" extra="Harmonised System of Nomenclature code for GST invoicing">
+            <Input placeholder="e.g. 1005" style={{ width: 160 }} maxLength={8} />
           </Form.Item>
           <Form.Item label="Description" name="description">
             <Input.TextArea rows={2} />
