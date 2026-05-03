@@ -1,0 +1,1 @@
+ALTER TABLE "Commodity" ADD COLUMN IF NOT EXISTS "hsnCode" TEXT;

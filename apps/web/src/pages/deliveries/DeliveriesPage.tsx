@@ -318,7 +318,7 @@ export default function DeliveriesPage() {
       }
     },
     {
-      title: 'Cess?', key: 'cess', width: 62,
+      title: 'Cess', key: 'cess', width: 62,
       render: (_: any, raw: any) => {
         const r = row(raw)
         return <Switch size="small" checked={!!r.cessApplicable} checkedChildren="Y" unCheckedChildren="N" onChange={v => patch(r.id, { cessApplicable: v })} />
@@ -453,7 +453,7 @@ export default function DeliveriesPage() {
             <Form.Item label="MC %" name="moisturePct" style={{ marginBottom: 4 }}>
               <InputNumber placeholder="14.5" min={0} max={100} step={0.1} style={{ width: 80 }} />
             </Form.Item>
-            <Form.Item label="Cess?" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 4 }}>
+            <Form.Item label="Cess" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 4 }}>
               <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
             </Form.Item>
             <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 4 }}>

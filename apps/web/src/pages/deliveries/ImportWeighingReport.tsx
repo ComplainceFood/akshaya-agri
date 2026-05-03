@@ -274,7 +274,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
       }
     },
     {
-      title: 'Cess?', key: 'cess', width: 65,
+      title: 'Cess', key: 'cess', width: 65,
       render: (_: any, r: ParsedRow) => (
         <Switch size="small" checked={r.cessApplicable}
           onChange={v => upd(r.key, 'cessApplicable', v)}
@@ -396,7 +396,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
               <Form.Item label="MC %" name="mcPct" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="e.g. 14.5" min={0} max={100} step={0.1} style={{ width: 85 }} />
               </Form.Item>
-              <Form.Item label="Cess?" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 6 }}>
+              <Form.Item label="Cess" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 6 }}>
                 <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
               </Form.Item>
               <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 6 }}>

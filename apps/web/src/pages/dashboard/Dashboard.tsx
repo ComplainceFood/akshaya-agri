@@ -116,7 +116,7 @@ export default function Dashboard() {
 
       {/* ── Overall (All Time) ── */}
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
-        OVERALL — ALL TIME
+        OVERALL - ALL TIME
       </Typography.Text>
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         <Col xs={12} sm={8} lg={3}>
