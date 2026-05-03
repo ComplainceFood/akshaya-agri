@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   DashboardOutlined, TeamOutlined, ShopOutlined, AppstoreOutlined,
   ShoppingCartOutlined, CarOutlined, DollarOutlined, BarChartOutlined,
-  UserOutlined, LogoutOutlined, TagsOutlined,
+  UserOutlined, LogoutOutlined, TagsOutlined, FileTextOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../../store/auth'
 
@@ -15,6 +15,7 @@ const menuItems = [
   { key: '/purchase-orders', icon: <ShoppingCartOutlined />, label: 'Purchase Rates' },
   { key: '/sales-orders', icon: <ShopOutlined />, label: 'Sale Rates' },
   { key: '/payments', icon: <DollarOutlined />, label: 'Payments' },
+  { key: '/invoices', icon: <FileTextOutlined />, label: 'Invoices' },
   { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
   { type: 'divider' as const },
   { key: '/suppliers', icon: <TeamOutlined />, label: 'Suppliers' },

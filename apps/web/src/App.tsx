@@ -11,6 +11,7 @@ import SalesOrdersPage from './pages/sales-orders/SalesOrdersPage'
 import DeliveriesPage from './pages/deliveries/DeliveriesPage'
 import PaymentsPage from './pages/payments/PaymentsPage'
 import ReportsPage from './pages/reports/ReportsPage'
+import InvoicesPage from './pages/invoices/InvoicesPage'
 import UsersPage from './pages/UsersPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="sales-orders" element={<SalesOrdersPage />} />
           <Route path="deliveries" element={<DeliveriesPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="invoices" element={<InvoicesPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="users" element={<UsersPage />} />
         </Route>
