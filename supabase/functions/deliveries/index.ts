@@ -72,13 +72,12 @@ Deno.serve(async (req) => {
 
   // GET /deliveries
   if (req.method === 'GET' && !id) {
-    const { supplierId, customerId, from, to, status } = Object.fromEntries(url.searchParams)
+    const { supplierId, customerId, from, to } = Object.fromEntries(url.searchParams)
     let query = db.from('Delivery')
-      .select('*, supplier:Supplier(id,name), customer:Customer(id,name), purchaseOrder:PurchaseOrder(id,poNumber), salesOrder:SalesOrder(id,soNumber)')
+      .select('*, supplier:Supplier(id,name), customer:Customer(id,name), commodity:Commodity(id,name)')
       .order('lrNumber', { ascending: true, nullsFirst: false })
     if (supplierId) query = query.eq('supplierId', supplierId)
     if (customerId) query = query.eq('customerId', customerId)
-    if (status) query = query.eq('status', status)
     if (from) query = query.gte('deliveryDate', from)
     if (to) query = query.lte('deliveryDate', to)
     const { data } = await query
@@ -88,7 +87,7 @@ Deno.serve(async (req) => {
   // GET /deliveries/:id
   if (req.method === 'GET' && id) {
     const { data } = await db.from('Delivery')
-      .select('*, supplier:Supplier(*), customer:Customer(*), purchaseOrder:PurchaseOrder(*), salesOrder:SalesOrder(*), supplierPaymentAllocations:SupplierPaymentAllocation(*, payment:SupplierPayment(*)), customerReceiptAllocations:CustomerReceiptAllocation(*, receipt:CustomerReceipt(*))')
+      .select('*, supplier:Supplier(*), customer:Customer(*), commodity:Commodity(id,name), supplierPaymentAllocations:SupplierPaymentAllocation(*, payment:SupplierPayment(*)), customerReceiptAllocations:CustomerReceiptAllocation(*, receipt:CustomerReceipt(*))')
       .eq('id', id).single()
     return json(data)
   }
@@ -101,7 +100,7 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString()
     const { data, error: dbErr } = await db.from('Delivery')
       .insert({ ...body, id: crypto.randomUUID(), deliveryNumber, ...calc, createdAt: now, updatedAt: now })
-      .select('*, supplier:Supplier(id,name), customer:Customer(id,name), purchaseOrder:PurchaseOrder(id,poNumber)')
+      .select('*, supplier:Supplier(id,name), customer:Customer(id,name), commodity:Commodity(id,name)')
       .single()
     if (dbErr) return error(dbErr.message)
     return json(data, 201)
@@ -115,11 +114,15 @@ Deno.serve(async (req) => {
     const merged = { ...existing, ...body }
     const calc = calcDelivery({
       grossWeight: Number(merged.grossWeight), tareWeight: Number(merged.tareWeight),
-      qualityDeductionPct: Number(merged.qualityDeductionPct), purchaseRate: Number(merged.purchaseRate),
+      qualityDeductionPct: Number(merged.qualityDeductionPct ?? 0),
+      purchaseRate: merged.purchaseRate ? Number(merged.purchaseRate) : undefined,
       saleRate: merged.saleRate ? Number(merged.saleRate) : undefined,
+      moisturePct: Number(merged.moisturePct ?? 0),
+      cessApplicable: !!merged.cessApplicable,
+      cessPaid: Number(merged.cessPaid ?? 0),
     })
-    const { data, error: dbErr } = await db.from('Delivery').update({ ...body, ...calc }).eq('id', id)
-      .select('*, supplier:Supplier(*), customer:Customer(*), purchaseOrder:PurchaseOrder(*)')
+    const { data, error: dbErr } = await db.from('Delivery').update({ ...body, ...calc, updatedAt: new Date().toISOString() }).eq('id', id)
+      .select('*, supplier:Supplier(id,name), customer:Customer(id,name), commodity:Commodity(id,name)')
       .single()
     if (dbErr) return error(dbErr.message)
     return json(data)

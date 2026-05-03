@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker,
   Typography, Space, Popconfirm, message, Divider, Row, Col,
-  Descriptions, Switch, Tooltip, Tag
+  Descriptions, Switch, Tooltip, Tag, Alert
 } from 'antd'
 import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined, FilterOutlined, CheckSquareOutlined } from '@ant-design/icons'
 import ImportWeighingReport from './ImportWeighingReport'
@@ -279,15 +279,22 @@ export default function DeliveriesPage() {
 
   const columns = [
     {
-      title: 'Slip No.', key: 'slip', width: 85, fixed: 'left' as const,
+      title: 'Slip No.', key: 'slip', width: 100, fixed: 'left' as const,
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return <InlineText value={r.lrNumber} onSave={v => patch(r.id, { lrNumber: v })} placeholder="-" bold />
+        const incomplete = !r.supplierId || !r.commodityId || !r.purchaseRate
+        return (
+          <Space size={4}>
+            <InlineText value={r.lrNumber} onSave={v => patch(r.id, { lrNumber: v })} placeholder="-" bold />
+            {incomplete && <Tag color="warning" style={{ fontSize: 10, padding: '0 3px', lineHeight: '16px' }}>!</Tag>}
+          </Space>
+        )
       }
     },
     { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 95, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110 },
-    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 130 },
+    { title: 'Supplier', key: 'supplier', width: 130, render: (_: any, raw: any) => row(raw).supplier?.name ?? <span style={{ color: '#bbb' }}>—</span> },
+    { title: 'Commodity', key: 'commodity', width: 110, render: (_: any, raw: any) => row(raw).commodity?.name ?? <span style={{ color: '#bbb' }}>—</span> },
     {
       title: 'Net Wt (Kg)', key: 'netWt', width: 100,
       render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '-'}</b>
@@ -376,6 +383,12 @@ export default function DeliveriesPage() {
   ]
 
   const hasSelection = selectedIds.length > 0
+  const untaggedCount = deliveries.filter((d: any) => !d.supplierId || !d.commodityId || !d.purchaseRate).length
+
+  function selectAllUntagged() {
+    const ids = filteredDeliveries.filter((d: any) => !d.supplierId || !d.commodityId || !d.purchaseRate).map((d: any) => d.id)
+    setSelectedIds(ids)
+  }
 
   return (
     <div>
@@ -422,6 +435,21 @@ export default function DeliveriesPage() {
           </Typography.Text>
         </Space>
       </div>
+
+      {/* Untagged data warning */}
+      {untaggedCount > 0 && !hasSelection && (
+        <Alert
+          type="warning"
+          style={{ marginBottom: 10 }}
+          message={
+            <span>
+              <b>{untaggedCount}</b> {untaggedCount === 1 ? 'delivery is' : 'deliveries are'} missing supplier, commodity, or purchase rate — reports will show incomplete data.{' '}
+              <a onClick={selectAllUntagged}>Select all untagged rows</a> to fill them in bulk.
+            </span>
+          }
+          showIcon
+        />
+      )}
 
       {/* Apply to Selected bar */}
       {hasSelection && (
