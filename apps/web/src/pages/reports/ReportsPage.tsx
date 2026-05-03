@@ -27,7 +27,10 @@ function DateFilter({ onChange }: { onChange: (from: string | null, to: string |
     <RangePicker
       format="DD/MM/YYYY"
       style={{ width: 240 }}
-      onChange={(_, s) => onChange(s[0] || null, s[1] || null)}
+      onChange={(dates) => onChange(
+        dates?.[0]?.format('YYYY-MM-DD') ?? null,
+        dates?.[1]?.format('YYYY-MM-DD') ?? null
+      )}
       allowClear
     />
   )
@@ -39,9 +42,11 @@ function PnLTab() {
   const [to, setTo] = useState<string | null>(null)
   const [commodityId, setCommodityId] = useState<string | null>(null)
   const { data: commodities = [] } = useCommodities()
-  const { data: pnl, isLoading } = usePnL(
-    from || to || commodityId ? { from, to, commodityId } : undefined
-  )
+  const params: any = {}
+  if (from) params.from = from
+  if (to) params.to = to
+  if (commodityId) params.commodityId = commodityId
+  const { data: pnl, isLoading } = usePnL(params)
 
   const marginPct = pnl?.totalSale > 0 ? (pnl.totalMargin / pnl.totalSale) * 100 : 0
 
@@ -102,9 +107,11 @@ function SupplierTab() {
   const [to, setTo] = useState<string | null>(null)
   const [supplierId, setSupplierId] = useState<string | null>(null)
   const { data: suppliers = [] } = useSuppliers()
-  const { data, isLoading } = useSupplierReport(
-    from || to || supplierId ? { from, to, supplierId } : undefined
-  )
+  const sParams: any = {}
+  if (from) sParams.from = from
+  if (to) sParams.to = to
+  if (supplierId) sParams.supplierId = supplierId
+  const { data, isLoading } = useSupplierReport(sParams)
   const rows: any[] = data?.rows || []
   const payments: any[] = data?.paymentHistory || []
 
@@ -179,9 +186,11 @@ function CustomerTab() {
   const [to, setTo] = useState<string | null>(null)
   const [customerId, setCustomerId] = useState<string | null>(null)
   const { data: customers = [] } = useCustomers()
-  const { data, isLoading } = useCustomerReport(
-    from || to || customerId ? { from, to, customerId } : undefined
-  )
+  const cParams: any = {}
+  if (from) cParams.from = from
+  if (to) cParams.to = to
+  if (customerId) cParams.customerId = customerId
+  const { data, isLoading } = useCustomerReport(cParams)
   const rows: any[] = data?.rows || []
   const receipts: any[] = data?.receiptHistory || []
 
@@ -255,7 +264,10 @@ function PaymentsTab() {
   const [from, setFrom] = useState<string | null>(null)
   const [to, setTo] = useState<string | null>(null)
   const [view, setView] = useState<'payments' | 'receipts' | 'cashflow'>('cashflow')
-  const { data, isLoading } = usePaymentsReport(from || to ? { from, to } : undefined)
+  const pParams: any = {}
+  if (from) pParams.from = from
+  if (to) pParams.to = to
+  const { data, isLoading } = usePaymentsReport(pParams)
 
   const payments: any[] = data?.payments || []
   const receipts: any[] = data?.receipts || []
