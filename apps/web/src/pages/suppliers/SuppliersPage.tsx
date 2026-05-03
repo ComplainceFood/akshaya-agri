@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, message, Row, Col, Divider } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from '../../api/hooks'
+import { DEFAULT_STATE } from '../../utils/constants'
 
 const INDIA_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
@@ -84,7 +85,7 @@ export default function SuppliersPage() {
             <Col span={8}><Form.Item label="Village" name="village"><Input /></Form.Item></Col>
             <Col span={8}><Form.Item label="District" name="district"><Input /></Form.Item></Col>
             <Col span={8}>
-              <Form.Item label="State" name="state" initialValue="Andhra Pradesh">
+              <Form.Item label="State" name="state" initialValue={DEFAULT_STATE}>
                 <Select showSearch optionFilterProp="label" options={INDIA_STATES.map(s => ({ value: s, label: s }))} />
               </Form.Item>
             </Col>

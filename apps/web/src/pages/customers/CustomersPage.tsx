@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, Popconfirm, message, Row, Col } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../api/hooks'
+import { DEFAULT_STATE, DEFAULT_PAYMENT_TERMS_DAYS } from '../../utils/constants'
 
 const INDIA_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
@@ -84,7 +85,7 @@ export default function CustomersPage() {
             <Col span={8}><Form.Item label="Village" name="village"><Input /></Form.Item></Col>
             <Col span={8}><Form.Item label="District" name="district"><Input /></Form.Item></Col>
             <Col span={8}>
-              <Form.Item label="State" name="state" initialValue="Andhra Pradesh">
+              <Form.Item label="State" name="state" initialValue={DEFAULT_STATE}>
                 <Select showSearch optionFilterProp="label" options={INDIA_STATES.map(s => ({ value: s, label: s }))} />
               </Form.Item>
             </Col>
@@ -93,7 +94,7 @@ export default function CustomersPage() {
           <Row gutter={12}>
             <Col span={12}><Form.Item label="GST Number" name="gstNumber"><Input /></Form.Item></Col>
             <Col span={12}>
-              <Form.Item label="Payment Terms (days)" name="paymentTerms" initialValue={30}>
+              <Form.Item label="Payment Terms (days)" name="paymentTerms" initialValue={DEFAULT_PAYMENT_TERMS_DAYS}>
                 <InputNumber min={0} style={{ width: '100%' }} />
               </Form.Item>
             </Col>

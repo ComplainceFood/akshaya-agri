@@ -11,10 +11,11 @@ import {
   useSuppliers, useCustomers, usePurchaseOrders, useSalesOrders, useDelivery
 } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
+import { MC_THRESHOLD_PCT, CESS_RATE, QT_TO_KG, KG_TO_QT } from '../../utils/constants'
 import dayjs from 'dayjs'
 
-const qtToKg = (qt: number | null | undefined) => qt != null ? +(Number(qt) * 100).toFixed(1) : null
-const kgToQt = (kg: number | null | undefined) => kg != null ? +(Number(kg) / 100).toFixed(3) : null
+const qtToKg = (qt: number | null | undefined) => qt != null ? +(Number(qt) * QT_TO_KG).toFixed(1) : null
+const kgToQt = (kg: number | null | undefined) => kg != null ? +(Number(kg) * KG_TO_QT).toFixed(3) : null
 
 function calcDerived(r: any) {
   const gross = Number(r.grossWeight ?? 0)
@@ -26,10 +27,10 @@ function calcDerived(r: any) {
   const saleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
   const grossMargin = saleValue != null && purchaseValue != null ? saleValue - purchaseValue : null
   const mc = Number(r.moisturePct ?? 0)
-  const mcDeduction = saleValue != null && mc > 14 ? ((mc - 14) / 100) * saleValue : 0
+  const mcDeduction = saleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
   const balanceCess = saleValue != null
-    ? (r.cessApplicable ? saleValue * 0.01 - cessPaid : -cessPaid)
+    ? (r.cessApplicable ? saleValue * CESS_RATE - cessPaid : -cessPaid)
     : null
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction
@@ -58,7 +59,7 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="MC Content %">{d.moisturePct ? `${d.moisturePct}%` : '—'}</Descriptions.Item>
       <Descriptions.Item label="MC Deduction (F)">
         <span style={{ color: calc.mcDeduction > 0 ? '#cf1322' : undefined }}>
-          {calc.mcDeduction > 0 ? formatINR(calc.mcDeduction) : '₹0 (MC ≤ 14%)'}
+          {calc.mcDeduction > 0 ? formatINR(calc.mcDeduction) : `₹0 (MC ≤ ${MC_THRESHOLD_PCT}%)`}
         </span>
       </Descriptions.Item>
       <Descriptions.Item label="Cess Applicable">{d.cessApplicable ? 'Yes' : 'No'}</Descriptions.Item>
@@ -67,7 +68,7 @@ function DeliveryDetail({ id }: { id: string }) {
         <span style={{ color: calc.balanceCess != null && calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
           {calc.balanceCess != null ? formatINR(calc.balanceCess) : '—'}
           <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>
-            {d.cessApplicable ? '(1% of Sale − Cess Paid)' : '(−Cess Paid)'}
+            {d.cessApplicable ? `(${CESS_RATE * 100}% of Sale − Cess Paid)` : '(−Cess Paid)'}
           </span>
         </span>
       </Descriptions.Item>
@@ -503,7 +504,7 @@ export default function DeliveriesPage() {
               </Form.Item>
             </Col>
             <Col span={16}>
-              <Form.Item label="Cess Paid (₹)" name="cessPaid" extra="Balance Cess = 1% of Sale Value − Cess Paid (if Yes), or −Cess Paid (if No)">
+              <Form.Item label="Cess Paid (₹)" name="cessPaid" extra={`Balance Cess = ${CESS_RATE * 100}% of Sale Value − Cess Paid (if Yes), or −Cess Paid (if No)`}>
                 <InputNumber min={0} style={{ width: '100%' }} step={1} />
               </Form.Item>
             </Col>

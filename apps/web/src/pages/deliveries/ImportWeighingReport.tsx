@@ -8,6 +8,7 @@ import api from '../../api/client'
 import { useCreateDelivery, useSuppliers, usePurchaseOrders, useSalesOrders, useCustomers } from '../../api/hooks'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
+import { MC_THRESHOLD_PCT, CESS_RATE } from '../../utils/constants'
 dayjs.extend(customParseFormat)
 
 const { Text } = Typography
@@ -59,10 +60,10 @@ function calcRow(r: ParsedRow) {
   const grossAmt = r.netWeight * (r.purchaseRate ?? 0)
   const saleGross = r.netWeight * (r.saleRate ?? 0)
   const mc = r.mcPct ?? 0
-  const mcDeduction = saleGross > 0 && mc > 14 ? ((mc - 14) / 100) * saleGross : 0
+  const mcDeduction = saleGross > 0 && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleGross : 0
   const cessPaid = r.cessPaid ?? 0
   const balanceCess = saleGross > 0
-    ? (r.cessApplicable ? saleGross * 0.01 - cessPaid : -cessPaid)
+    ? (r.cessApplicable ? saleGross * CESS_RATE - cessPaid : -cessPaid)
     : 0
   const netPayable = grossAmt - balanceCess - mcDeduction
   return { grossAmt, saleGross, mcDeduction, balanceCess, netPayable }
