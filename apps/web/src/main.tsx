@@ -6,7 +6,13 @@ import App from './App'
 import './index.css'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 60000,          // data stays fresh for 60s — no silent background refetches
+      refetchOnWindowFocus: false, // clicking back into the tab won't cold-start Supabase functions
+    },
+  },
 })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

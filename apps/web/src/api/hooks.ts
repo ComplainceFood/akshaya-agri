@@ -102,7 +102,14 @@ export const useDelivery = (id: string) =>
   useQuery({ queryKey: ['delivery', id], queryFn: () => api.get(`/deliveries/${id}`).then(r => r.data), enabled: !!id })
 export const useCreateDelivery = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: (data: any) => api.post('/deliveries', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['deliveries'] }); qc.invalidateQueries({ queryKey: ['reports'] }) } })
+  return useMutation({
+    mutationFn: (data: any) => api.post('/deliveries', data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deliveries'] })
+      // Mark dashboard stale so it refreshes next time it's viewed, not immediately
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
 }
 export const useUpdateDelivery = () => {
   const qc = useQueryClient()
@@ -119,7 +126,13 @@ export const useUpdateDelivery = () => {
 }
 export const useDeleteDelivery = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: (id: string) => api.delete(`/deliveries/${id}`).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['deliveries'] }); qc.invalidateQueries({ queryKey: ['reports'] }) } })
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/deliveries/${id}`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deliveries'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
 }
 
 // Payments
@@ -127,7 +140,7 @@ export const useSupplierPayments = (supplierId?: string) =>
   useQuery({ queryKey: ['supplier-payments', supplierId], queryFn: () => api.get('/payments/supplier', { params: { supplierId } }).then(r => r.data) })
 export const useCreateSupplierPayment = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: (data: any) => api.post('/payments/supplier', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['supplier-payments'] }); qc.invalidateQueries({ queryKey: ['reports'] }) } })
+  return useMutation({ mutationFn: (data: any) => api.post('/payments/supplier', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['supplier-payments'] }); qc.invalidateQueries({ queryKey: ['supplier-ledger'] }); qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' }) } })
 }
 export const useSupplierLedger = (supplierId: string) =>
   useQuery({ queryKey: ['supplier-ledger', supplierId], queryFn: () => api.get(`/payments/supplier/${supplierId}/ledger`).then(r => r.data), enabled: !!supplierId })
@@ -136,7 +149,7 @@ export const useCustomerReceipts = (customerId?: string) =>
   useQuery({ queryKey: ['customer-receipts', customerId], queryFn: () => api.get('/payments/customer', { params: { customerId } }).then(r => r.data) })
 export const useCreateCustomerReceipt = () => {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: (data: any) => api.post('/payments/customer', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['customer-receipts'] }); qc.invalidateQueries({ queryKey: ['reports'] }) } })
+  return useMutation({ mutationFn: (data: any) => api.post('/payments/customer', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['customer-receipts'] }); qc.invalidateQueries({ queryKey: ['customer-ledger'] }); qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' }) } })
 }
 export const useCustomerLedger = (customerId: string) =>
   useQuery({ queryKey: ['customer-ledger', customerId], queryFn: () => api.get(`/payments/customer/${customerId}/ledger`).then(r => r.data), enabled: !!customerId })
