@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       db.from('PurchaseOrder').select('*', { count: 'exact', head: true }).in('status', ['CONFIRMED', 'IN_PROGRESS']),
       db.from('SalesOrder').select('*', { count: 'exact', head: true }).in('status', ['CONFIRMED', 'IN_PROGRESS']),
       db.from('Delivery')
-        .select('*, supplier:Supplier(id,name), customer:Customer(id,name), purchaseOrder:PurchaseOrder(poNumber), salesOrder:SalesOrder(soNumber)')
+        .select('*, supplier:Supplier(id,name), purchaseOrder:PurchaseOrder(poNumber), salesOrder:SalesOrder(soNumber)')
         .order('deliveryDate', { ascending: false })
         .limit(10),
       db.from('SupplierPayment').select('amount, supplierId'),
@@ -104,13 +104,15 @@ Deno.serve(async (req) => {
       .sort((a, b) => b.outstanding - a.outstanding)
       .slice(0, 5)
 
+    const totalDeliveries = (allDeliveries || []).length
+    const totalWeightQt = (allDeliveries || []).reduce((s: number, d: any) => s + Number(d.adjustedWeight ?? 0), 0)
+
     return json({
       totalSuppliers, totalCustomers,
       openPOs: pendingPOs, openSOs: pendingSOs,
       recentDeliveries,
       totalPayable: totalPurchaseValue - totalPaid,
       totalReceivable: totalSaleValue - totalReceived,
-      totalMargin,
       today: {
         deliveryCount: todayDeliveries.length,
         totalWeightQt: todayWeight,
@@ -124,6 +126,13 @@ Deno.serve(async (req) => {
         purchaseValue: monthPurchaseValue,
         saleValue: monthSaleValue,
         margin: monthMargin,
+      },
+      overall: {
+        deliveryCount: totalDeliveries,
+        totalWeightQt,
+        purchaseValue: totalPurchaseValue,
+        saleValue: totalSaleValue,
+        margin: totalMargin,
       },
       topSupplierPayables,
       topCustomerReceivables,

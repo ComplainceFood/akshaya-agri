@@ -175,6 +175,9 @@ model Delivery {
   purchaseValue    Decimal        @db.Decimal(14, 2)
   saleValue        Decimal?       @db.Decimal(14, 2)
   grossMargin      Decimal?       @db.Decimal(14, 2)
+  cessApplicable   Boolean        @default(false)
+  cessPaid         Decimal        @default(0) @db.Decimal(14, 2)
+  netPayable       Decimal?       @db.Decimal(14, 2)
 
   status           DeliveryStatus @default(PENDING)
   notes            String?

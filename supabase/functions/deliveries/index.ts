@@ -2,9 +2,13 @@ import { corsResponse, json, error } from '../_shared/cors.ts'
 import { requireAuth, requireRole, getAdminClient } from '../_shared/auth.ts'
 import { getNextNumber } from '../_shared/sequence.ts'
 
+const MC_THRESHOLD_PCT = 14
+const CESS_RATE = 0.01
+
 function calcDelivery(data: {
   grossWeight?: number; tareWeight?: number
   qualityDeductionPct?: number; purchaseRate?: number; saleRate?: number
+  moisturePct?: number; cessApplicable?: boolean; cessPaid?: number
 }) {
   const gross = Number(data.grossWeight ?? 0)
   const tare = Number(data.tareWeight ?? 0)
@@ -14,7 +18,20 @@ function calcDelivery(data: {
   const purchaseValue = data.purchaseRate ? adjustedWeight * Number(data.purchaseRate) : null
   const saleValue = data.saleRate ? adjustedWeight * Number(data.saleRate) : null
   const grossMargin = saleValue !== null && purchaseValue !== null ? saleValue - purchaseValue : null
-  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin }
+
+  const mc = Number(data.moisturePct ?? 0)
+  const mcDeduction = saleValue !== null && mc > MC_THRESHOLD_PCT
+    ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue
+    : 0
+  const cessPaid = Number(data.cessPaid ?? 0)
+  const balanceCess = saleValue !== null
+    ? (data.cessApplicable ? saleValue * CESS_RATE - cessPaid : -cessPaid)
+    : null
+  const netPayable = purchaseValue !== null && balanceCess !== null
+    ? purchaseValue - balanceCess - mcDeduction
+    : null
+
+  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, netPayable }
 }
 
 Deno.serve(async (req) => {
