@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker,
   Typography, Space, Popconfirm, message, Divider, Row, Col,
-  Descriptions, Switch, Tooltip, Tag, Alert
+  Descriptions, Switch, Tooltip, Tag, Alert, Tabs, Badge
 } from 'antd'
 import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined, FilterOutlined, CheckSquareOutlined } from '@ant-design/icons'
 import ImportWeighingReport from './ImportWeighingReport'
@@ -130,7 +130,7 @@ function InlineNum({ value, onSave, min = 0, step = 1, prefix, suffix, style, de
   )
 }
 
-export default function DeliveriesPage() {
+function DeliverySheet({ commodityId, commodityName }: { commodityId: string | null; commodityName: string }) {
   const [open, setOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [viewId, setViewId] = useState<string | null>(null)
@@ -157,19 +157,26 @@ export default function DeliveriesPage() {
   const { mutateAsync: update } = useUpdateDelivery()
   const { mutateAsync: remove } = useDeleteDelivery()
 
+  // Filter to this commodity tab (null = All tab shows untagged + all)
+  const tabDeliveries = useMemo(() => {
+    if (commodityId === null) return deliveries
+    if (commodityId === '__untagged__') return deliveries.filter((d: any) => !d.commodityId)
+    return deliveries.filter((d: any) => d.commodityId === commodityId)
+  }, [deliveries, commodityId])
+
   const row = useCallback((r: any) => ({ ...r, ...(overrides[r.id] ?? {}) }), [overrides])
 
   // Pre-compute derived values for every row once per render - avoids 8× calcDerived per row per render
   const derivedMap = useMemo(() => {
     const map = new Map<string, ReturnType<typeof calcDerived>>()
-    for (const r of deliveries) {
+    for (const r of tabDeliveries) {
       map.set(r.id, calcDerived(row(r)))
     }
     return map
-  }, [deliveries, overrides])
+  }, [tabDeliveries, overrides])
 
   const filteredDeliveries = useMemo(() => {
-    let rows = [...deliveries]
+    let rows = [...tabDeliveries]
     if (filterSupplier) rows = rows.filter((r: any) => r.supplierId === filterSupplier)
     if (filterDateRange) {
       const [from, to] = filterDateRange
@@ -208,7 +215,17 @@ export default function DeliveriesPage() {
     setRateCommodityId(vals.commodityId ?? null)
   }
 
-  function openAdd() { setEditing(null); form.resetFields(); setRateDate(null); setRateCommodityId(null); setOpen(true) }
+  function openAdd() {
+    setEditing(null)
+    form.resetFields()
+    if (commodityId && commodityId !== '__untagged__') {
+      form.setFieldValue('commodityId', commodityId)
+      setRateCommodityId(commodityId)
+    } else {
+      setRateDate(null); setRateCommodityId(null)
+    }
+    setOpen(true)
+  }
   function openEdit(r: any) {
     const merged = row(r)
     setEditing(merged)
@@ -383,7 +400,7 @@ export default function DeliveriesPage() {
   ]
 
   const hasSelection = selectedIds.length > 0
-  const untaggedCount = deliveries.filter((d: any) => !d.supplierId || !d.commodityId || !d.purchaseRate).length
+  const untaggedCount = tabDeliveries.filter((d: any) => !d.supplierId || !d.commodityId || !d.purchaseRate).length
 
   function selectAllUntagged() {
     const ids = filteredDeliveries.filter((d: any) => !d.supplierId || !d.commodityId || !d.purchaseRate).map((d: any) => d.id)
@@ -394,7 +411,6 @@ export default function DeliveriesPage() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Deliveries (Lorry Receipts)</Typography.Title>
         <Space>
           {hasSelection && (
             <Popconfirm title={`Delete ${selectedIds.length} selected deliveries?`} onConfirm={deleteSelected} okText="Delete" okButtonProps={{ danger: true }}>
@@ -431,7 +447,7 @@ export default function DeliveriesPage() {
             </Button>
           )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {filteredDeliveries.length} of {deliveries.length} rows
+            {filteredDeliveries.length} of {tabDeliveries.length} rows
           </Typography.Text>
         </Space>
       </div>
@@ -575,6 +591,59 @@ export default function DeliveriesPage() {
           <Form.Item label="Notes" name="notes"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
+    </div>
+  )
+}
+
+export default function DeliveriesPage() {
+  const { data: deliveries = [] } = useDeliveries()
+  const { data: commodities = [] } = useCommodities()
+
+  // Build tabs: one per commodity that has deliveries, plus "Untagged" if any rows lack commodityId
+  const commodityTabs = useMemo(() => {
+    const countMap: Record<string, number> = {}
+    let untagged = 0
+    for (const d of deliveries) {
+      if ((d as any).commodityId) countMap[(d as any).commodityId] = (countMap[(d as any).commodityId] ?? 0) + 1
+      else untagged++
+    }
+    const tabs = commodities
+      .filter((c: any) => countMap[c.id] != null || true) // show all commodities, even empty
+      .map((c: any) => ({
+        key: c.id,
+        label: (
+          <span>
+            {c.name}
+            {countMap[c.id] ? <Badge count={countMap[c.id]} size="small" color="#1677ff" style={{ marginLeft: 6 }} /> : null}
+          </span>
+        ),
+        children: <DeliverySheet commodityId={c.id} commodityName={c.name} />,
+      }))
+    const allCount = deliveries.length
+    const items = [
+      {
+        key: '__all__',
+        label: <span>All <Badge count={allCount} size="small" color="#888" style={{ marginLeft: 6 }} /></span>,
+        children: <DeliverySheet commodityId={null} commodityName="All" />,
+      },
+      ...tabs,
+    ]
+    if (untagged > 0) {
+      items.push({
+        key: '__untagged__',
+        label: <span style={{ color: '#faad14' }}>Untagged <Badge count={untagged} size="small" color="#faad14" style={{ marginLeft: 6 }} /></span>,
+        children: <DeliverySheet commodityId="__untagged__" commodityName="Untagged" />,
+      })
+    }
+    return items
+  }, [deliveries, commodities])
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>Deliveries (Lorry Receipts)</Typography.Title>
+      </div>
+      <Tabs items={commodityTabs} type="card" size="small" />
     </div>
   )
 }

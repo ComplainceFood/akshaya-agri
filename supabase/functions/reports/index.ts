@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
     if (from) dQuery = dQuery.gte('deliveryDate', from)
     if (to) dQuery = dQuery.lte('deliveryDate', to)
     if (supplierId) dQuery = dQuery.eq('supplierId', supplierId)
+    else dQuery = dQuery.not('supplierId', 'is', null)
 
     const [{ data: deliveries }, { data: allPayments }] = await Promise.all([
       dQuery,
@@ -147,11 +148,15 @@ Deno.serve(async (req) => {
       if (!bySupplier[sid]) bySupplier[sid] = { supplierId: sid, name: d.supplier?.name ?? sid, deliveryCount: 0, totalWeight: 0, totalPurchaseValue: 0, totalNetPayable: 0, totalPaid: 0 }
       bySupplier[sid].deliveryCount++
       bySupplier[sid].totalWeight += Number(d.adjustedWeight ?? 0)
-      bySupplier[sid].totalPurchaseValue += Number(d.purchaseValue ?? 0)
-      bySupplier[sid].totalNetPayable += Number(d.netPayable ?? 0)
+      const pv = Number(d.purchaseValue ?? 0)
+      bySupplier[sid].totalPurchaseValue += pv
+      // Use stored netPayable if available, otherwise fall back to purchaseValue
+      bySupplier[sid].totalNetPayable += d.netPayable != null ? Number(d.netPayable) : pv
     }
 
-    const filteredPayments = supplierId ? (allPayments || []).filter((p: any) => p.supplierId === supplierId) : (allPayments || [])
+    const filteredPayments = supplierId
+      ? (allPayments || []).filter((p: any) => p.supplierId === supplierId)
+      : (allPayments || [])
     for (const p of filteredPayments) {
       if (bySupplier[p.supplierId]) bySupplier[p.supplierId].totalPaid += Number(p.amount)
     }
@@ -184,6 +189,7 @@ Deno.serve(async (req) => {
     if (from) dQuery = dQuery.gte('deliveryDate', from)
     if (to) dQuery = dQuery.lte('deliveryDate', to)
     if (customerId) dQuery = dQuery.eq('customerId', customerId)
+    else dQuery = dQuery.not('customerId', 'is', null)
 
     const [{ data: deliveries }, { data: allReceipts }] = await Promise.all([
       dQuery,

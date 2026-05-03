@@ -164,8 +164,8 @@ function SupplierTab() {
             <Table.Summary.Cell index={2} align="right">{formatQt(rows.reduce((s, r) => s + r.totalWeight, 0))}</Table.Summary.Cell>
             <Table.Summary.Cell index={3} align="right">{formatINR(totalPurchase)}</Table.Summary.Cell>
             <Table.Summary.Cell index={4} align="right">{formatINR(rows.reduce((s, r) => s + r.totalNetPayable, 0))}</Table.Summary.Cell>
-            <Table.Summary.Cell index={5} align="right" style={{ color: '#2e7d32' }}>{formatINR(totalPaid)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={6} align="right" style={{ color: '#cf1322' }}>{formatINR(totalOutstanding)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={5} align="right"><span style={{ color: '#2e7d32' }}>{formatINR(totalPaid)}</span></Table.Summary.Cell>
+            <Table.Summary.Cell index={6} align="right"><span style={{ color: '#cf1322' }}>{formatINR(totalOutstanding)}</span></Table.Summary.Cell>
           </Table.Summary.Row>
         ) : undefined}
       />
@@ -242,9 +242,9 @@ function CustomerTab() {
             <Table.Summary.Cell index={1} align="right">{rows.reduce((s, r) => s + r.deliveryCount, 0)}</Table.Summary.Cell>
             <Table.Summary.Cell index={2} align="right">{formatQt(rows.reduce((s, r) => s + r.totalWeight, 0))}</Table.Summary.Cell>
             <Table.Summary.Cell index={3} align="right">{formatINR(totalSale)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={4} align="right" style={{ color: '#2e7d32' }}>{formatINR(rows.reduce((s, r) => s + r.totalMargin, 0))}</Table.Summary.Cell>
-            <Table.Summary.Cell index={5} align="right" style={{ color: '#2e7d32' }}>{formatINR(totalReceived)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={6} align="right" style={{ color: '#cf1322' }}>{formatINR(totalOutstanding)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={4} align="right"><span style={{ color: '#2e7d32' }}>{formatINR(rows.reduce((s, r) => s + r.totalMargin, 0))}</span></Table.Summary.Cell>
+            <Table.Summary.Cell index={5} align="right"><span style={{ color: '#2e7d32' }}>{formatINR(totalReceived)}</span></Table.Summary.Cell>
+            <Table.Summary.Cell index={6} align="right"><span style={{ color: '#cf1322' }}>{formatINR(totalOutstanding)}</span></Table.Summary.Cell>
           </Table.Summary.Row>
         ) : undefined}
       />
@@ -337,7 +337,7 @@ function PaymentsTab() {
             summary={() => (
               <Table.Summary.Row style={{ fontWeight: 600 }}>
                 <Table.Summary.Cell index={0} colSpan={3}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} style={{ color: '#cf1322' }}>{formatINR(data?.totalPaid ?? 0)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={1}><span style={{ color: '#cf1322' }}>{formatINR(data?.totalPaid ?? 0)}</span></Table.Summary.Cell>
                 <Table.Summary.Cell index={2} />
               </Table.Summary.Row>
             )} />
@@ -349,7 +349,7 @@ function PaymentsTab() {
             summary={() => (
               <Table.Summary.Row style={{ fontWeight: 600 }}>
                 <Table.Summary.Cell index={0} colSpan={3}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} style={{ color: '#2e7d32' }}>{formatINR(data?.totalReceived ?? 0)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={1}><span style={{ color: '#2e7d32' }}>{formatINR(data?.totalReceived ?? 0)}</span></Table.Summary.Cell>
                 <Table.Summary.Cell index={2} />
               </Table.Summary.Row>
             )} />
@@ -395,8 +395,8 @@ function StockTab() {
             <Table.Summary.Cell index={1}>{formatQt(totalWeight)}</Table.Summary.Cell>
             <Table.Summary.Cell index={2}>{formatINR(totalPurchase)}</Table.Summary.Cell>
             <Table.Summary.Cell index={3}>{formatINR(totalSale)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={4} style={{ color: (totalSale - totalPurchase) >= 0 ? '#2e7d32' : '#cf1322', fontWeight: 600 }}>
-              {formatINR(totalSale - totalPurchase)}
+            <Table.Summary.Cell index={4}>
+              <span style={{ color: (totalSale - totalPurchase) >= 0 ? '#2e7d32' : '#cf1322', fontWeight: 600 }}>{formatINR(totalSale - totalPurchase)}</span>
             </Table.Summary.Cell>
           </Table.Summary.Row>
         ) : undefined}
