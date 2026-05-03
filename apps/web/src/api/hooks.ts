@@ -168,6 +168,22 @@ export const useCreateCustomerReceipt = () => {
 export const useCustomerLedger = (customerId: string) =>
   useQuery({ queryKey: ['customer-ledger', customerId], queryFn: () => api.get(`/payments/customer/${customerId}/ledger`).then(r => r.data), enabled: !!customerId })
 
+// Daily Rate lookup — used by deliveries form to auto-fill rates
+export const useDailyRates = (date: string | null, commodityId: string | null) =>
+  useQuery({
+    queryKey: ['daily-rates', date, commodityId],
+    queryFn: async () => {
+      if (!date || !commodityId) return { purchaseRate: null, saleRate: null }
+      const [pr, sr] = await Promise.all([
+        api.get('/purchase-orders', { params: { date, commodityId } }).then(r => r.data?.[0]?.ratePerQuintal ?? null),
+        api.get('/sales-orders', { params: { date, commodityId } }).then(r => r.data?.[0]?.ratePerQuintal ?? null),
+      ])
+      return { purchaseRate: pr, saleRate: sr }
+    },
+    enabled: !!date && !!commodityId,
+    staleTime: 30000,
+  })
+
 // Reports
 export const useDashboard = () =>
   useQuery({ queryKey: ['reports', 'dashboard'], queryFn: () => api.get('/reports/dashboard').then(r => r.data) })

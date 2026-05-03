@@ -12,8 +12,8 @@ const { Header, Sider, Content } = Layout
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
   { key: '/deliveries', icon: <CarOutlined />, label: 'Deliveries' },
-  { key: '/purchase-orders', icon: <ShoppingCartOutlined />, label: 'Purchase Orders' },
-  { key: '/sales-orders', icon: <ShopOutlined />, label: 'Sales Orders' },
+  { key: '/purchase-orders', icon: <ShoppingCartOutlined />, label: 'Purchase Rates' },
+  { key: '/sales-orders', icon: <ShopOutlined />, label: 'Sale Rates' },
   { key: '/payments', icon: <DollarOutlined />, label: 'Payments' },
   { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
   { type: 'divider' as const },

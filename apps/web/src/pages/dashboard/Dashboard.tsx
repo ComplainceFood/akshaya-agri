@@ -1,6 +1,6 @@
 import { Row, Col, Card, Statistic, Table, Tag, Typography, Spin, Divider, Progress } from 'antd'
 import {
-  ArrowUpOutlined, ShoppingCartOutlined, CarOutlined, DollarOutlined,
+  ArrowUpOutlined, CarOutlined,
   TeamOutlined, UserOutlined, RiseOutlined, FallOutlined,
 } from '@ant-design/icons'
 import { useDashboard } from '../../api/hooks'
@@ -143,22 +143,21 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* ── Financials & Orders ── */}
+      {/* ── Financials ── */}
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
         OVERALL POSITION
       </Typography.Text>
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8}>
           <StatCard title="Total Payable (Suppliers)" value={formatINR(data.totalPayable)} color="#cf1322" prefix={<FallOutlined />} />
         </Col>
-        <Col xs={12} sm={6}>
+        <Col xs={12} sm={8}>
           <StatCard title="Total Receivable (Buyers)" value={formatINR(data.totalReceivable)} color="#2e7d32" prefix={<ArrowUpOutlined />} />
         </Col>
-        <Col xs={12} sm={6}>
-          <StatCard title="Open Purchase Orders" value={String(data.openPOs)} prefix={<ShoppingCartOutlined />} />
-        </Col>
-        <Col xs={12} sm={6}>
-          <StatCard title="Open Sales Orders" value={String(data.openSOs)} prefix={<DollarOutlined />} />
+        <Col xs={12} sm={8}>
+          <StatCard title="Net Position" value={formatINR(data.totalReceivable - data.totalPayable)}
+            color={(data.totalReceivable - data.totalPayable) >= 0 ? '#2e7d32' : '#cf1322'}
+            prefix={<ArrowUpOutlined />} />
         </Col>
       </Row>
 

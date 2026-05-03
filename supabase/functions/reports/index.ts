@@ -20,8 +20,6 @@ Deno.serve(async (req) => {
     const [
       { count: totalSuppliers },
       { count: totalCustomers },
-      { count: pendingPOs },
-      { count: pendingSOs },
       { data: recentDeliveries },
       { data: payments },
       { data: receipts },
@@ -31,10 +29,8 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       db.from('Supplier').select('*', { count: 'exact', head: true }).eq('isActive', true),
       db.from('Customer').select('*', { count: 'exact', head: true }).eq('isActive', true),
-      db.from('PurchaseOrder').select('*', { count: 'exact', head: true }).in('status', ['CONFIRMED', 'IN_PROGRESS']),
-      db.from('SalesOrder').select('*', { count: 'exact', head: true }).in('status', ['CONFIRMED', 'IN_PROGRESS']),
       db.from('Delivery')
-        .select('*, supplier:Supplier(id,name), purchaseOrder:PurchaseOrder(poNumber), salesOrder:SalesOrder(soNumber)')
+        .select('*, supplier:Supplier(id,name), commodity:Commodity(id,name)')
         .order('deliveryDate', { ascending: false })
         .limit(10),
       db.from('SupplierPayment').select('amount, supplierId'),
@@ -109,7 +105,6 @@ Deno.serve(async (req) => {
 
     return json({
       totalSuppliers, totalCustomers,
-      openPOs: pendingPOs, openSOs: pendingSOs,
       recentDeliveries,
       totalPayable: totalPurchaseValue - totalPaid,
       totalReceivable: totalSaleValue - totalReceived,
@@ -155,16 +150,19 @@ Deno.serve(async (req) => {
     return json({ deliveries, totalPurchase, totalSale, totalMargin })
   }
 
-  // GET /reports/stock
+  // GET /reports/stock — commodity-level stock summary from deliveries
   if (req.method === 'GET' && report === 'stock') {
-    const { data: orders } = await db.from('PurchaseOrder')
-      .select('*, supplier:Supplier(name), commodity:Commodity(name), deliveries:Delivery(adjustedWeight)')
-      .in('status', ['CONFIRMED', 'IN_PROGRESS'])
-    const result = (orders || []).map((o: any) => {
-      const delivered = (o.deliveries || []).reduce((s: number, d: any) => s + Number(d.adjustedWeight), 0)
-      return { ...o, deliveredWeight: delivered, pendingWeight: Number(o.quantityOrdered) - delivered }
-    })
-    return json(result)
+    const { data: deliveries } = await db.from('Delivery')
+      .select('adjustedWeight, purchaseValue, saleValue, commodity:Commodity(id,name)')
+    const byComm: Record<string, { commodityId: string; name: string; totalWeight: number; totalPurchase: number; totalSale: number }> = {}
+    for (const d of (deliveries || [])) {
+      const cid = (d.commodity as any)?.id ?? 'unknown'
+      if (!byComm[cid]) byComm[cid] = { commodityId: cid, name: (d.commodity as any)?.name ?? cid, totalWeight: 0, totalPurchase: 0, totalSale: 0 }
+      byComm[cid].totalWeight += Number(d.adjustedWeight ?? 0)
+      byComm[cid].totalPurchase += Number(d.purchaseValue ?? 0)
+      byComm[cid].totalSale += Number(d.saleValue ?? 0)
+    }
+    return json(Object.values(byComm))
   }
 
   return error('Not found', 404)

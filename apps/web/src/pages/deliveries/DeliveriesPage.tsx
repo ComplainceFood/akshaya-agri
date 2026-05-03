@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker,
   Typography, Space, Popconfirm, message, Divider, Row, Col,
@@ -8,7 +8,7 @@ import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined
 import ImportWeighingReport from './ImportWeighingReport'
 import {
   useDeliveries, useCreateDelivery, useUpdateDelivery, useDeleteDelivery,
-  useSuppliers, useCustomers, usePurchaseOrders, useSalesOrders, useDelivery
+  useSuppliers, useCustomers, useCommodities, useDailyRates, useDelivery
 } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
 import { MC_THRESHOLD_PCT, CESS_RATE, QT_TO_KG, KG_TO_QT } from '../../utils/constants'
@@ -49,7 +49,7 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Date">{dayjs(d.deliveryDate).format('DD/MM/YYYY')}</Descriptions.Item>
       <Descriptions.Item label="Vehicle">{d.vehicleNumber}</Descriptions.Item>
       <Descriptions.Item label="Supplier">{d.supplier?.name || '—'}</Descriptions.Item>
-      <Descriptions.Item label="Purchase Order">{d.purchaseOrder?.poNumber || '—'}</Descriptions.Item>
+      <Descriptions.Item label="Commodity">{d.commodity?.name || '—'}</Descriptions.Item>
       <Descriptions.Item label="Gross Weight">{qtToKg(d.grossWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
       <Descriptions.Item label="Tare Weight">{qtToKg(d.tareWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
       <Descriptions.Item label="Net Weight (A)"><b>{qtToKg(calc.netWeight)?.toLocaleString('en-IN')} Kg</b></Descriptions.Item>
@@ -145,11 +145,14 @@ export default function DeliveriesPage() {
   const [filterDateRange, setFilterDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
   const [filterSearch, setFilterSearch] = useState('')
 
+  const [rateDate, setRateDate] = useState<string | null>(null)
+  const [rateCommodityId, setRateCommodityId] = useState<string | null>(null)
+
   const { data: deliveries = [], isLoading } = useDeliveries()
   const { data: suppliers = [] } = useSuppliers()
   const { data: customers = [] } = useCustomers()
-  const { data: pos = [] } = usePurchaseOrders()
-  const { data: sos = [] } = useSalesOrders()
+  const { data: commodities = [] } = useCommodities()
+  const { data: dailyRates } = useDailyRates(rateDate, rateCommodityId)
   const { mutateAsync: create } = useCreateDelivery()
   const { mutateAsync: update } = useUpdateDelivery()
   const { mutateAsync: remove } = useDeleteDelivery()
@@ -191,7 +194,21 @@ export default function DeliveriesPage() {
     })
   }, [deliveries, filterSupplier, filterDateRange, filterSearch])
 
-  function openAdd() { setEditing(null); form.resetFields(); setOpen(true) }
+  // Auto-fill rates when date+commodity are both set in the form
+  useEffect(() => {
+    if (!open || !dailyRates) return
+    const cur = form.getFieldsValue(['purchaseRate', 'saleRate'])
+    if (dailyRates.purchaseRate != null && !cur.purchaseRate) form.setFieldValue('purchaseRate', dailyRates.purchaseRate)
+    if (dailyRates.saleRate != null && !cur.saleRate) form.setFieldValue('saleRate', dailyRates.saleRate)
+  }, [dailyRates, open])
+
+  function onFormDateOrCommodityChange() {
+    const vals = form.getFieldsValue(['deliveryDate', 'commodityId'])
+    setRateDate(vals.deliveryDate ? vals.deliveryDate.format('YYYY-MM-DD') : null)
+    setRateCommodityId(vals.commodityId ?? null)
+  }
+
+  function openAdd() { setEditing(null); form.resetFields(); setRateDate(null); setRateCommodityId(null); setOpen(true) }
   function openEdit(r: any) {
     const merged = row(r)
     setEditing(merged)
@@ -233,9 +250,8 @@ export default function DeliveriesPage() {
     const vals = bulkForm.getFieldsValue()
     const fields: Record<string, any> = {}
     if (vals.supplierId != null) fields.supplierId = vals.supplierId
-    if (vals.purchaseOrderId != null) fields.purchaseOrderId = vals.purchaseOrderId
+    if (vals.commodityId != null) fields.commodityId = vals.commodityId
     if (vals.customerId != null) fields.customerId = vals.customerId
-    if (vals.salesOrderId != null) fields.salesOrderId = vals.salesOrderId
     if (vals.purchaseRate != null) fields.purchaseRate = vals.purchaseRate
     if (vals.saleRate != null) fields.saleRate = vals.saleRate
     if (vals.moisturePct != null) fields.moisturePct = vals.moisturePct
@@ -420,17 +436,13 @@ export default function DeliveriesPage() {
               <Select placeholder="Supplier" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
                 options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} />
             </Form.Item>
-            <Form.Item label="PO" name="purchaseOrderId" style={{ marginBottom: 4 }}>
-              <Select placeholder="PO" style={{ width: 140 }} showSearch optionFilterProp="label" allowClear
-                options={pos.map((p: any) => ({ value: p.id, label: p.poNumber }))} />
+            <Form.Item label="Commodity" name="commodityId" style={{ marginBottom: 4 }}>
+              <Select placeholder="Commodity" style={{ width: 150 }} showSearch optionFilterProp="label" allowClear
+                options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} />
             </Form.Item>
             <Form.Item label="Customer" name="customerId" style={{ marginBottom: 4 }}>
               <Select placeholder="Customer" style={{ width: 150 }} showSearch optionFilterProp="label" allowClear
                 options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
-            </Form.Item>
-            <Form.Item label="SO" name="salesOrderId" style={{ marginBottom: 4 }}>
-              <Select placeholder="SO" style={{ width: 130 }} showSearch optionFilterProp="label" allowClear
-                options={sos.map((s: any) => ({ value: s.id, label: s.soNumber }))} />
             </Form.Item>
             <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 4 }}>
               <InputNumber placeholder="Rate" min={0} step={0.5} style={{ width: 95 }} />
@@ -478,17 +490,26 @@ export default function DeliveriesPage() {
         width={720} okText={editing ? 'Save Changes' : 'Record'} okButtonProps={{ icon: <SaveOutlined /> }}>
         <Form form={form} layout="vertical" size="small">
           <Row gutter={12}>
-            <Col span={8}><Form.Item label="Delivery Date" name="deliveryDate" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item></Col>
+            <Col span={8}>
+              <Form.Item label="Delivery Date" name="deliveryDate" rules={[{ required: true }]}>
+                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" onChange={onFormDateOrCommodityChange} />
+              </Form.Item>
+            </Col>
             <Col span={8}><Form.Item label="Vehicle Number" name="vehicleNumber" rules={[{ required: true }]}><Input placeholder="e.g. AP07TF6826" /></Form.Item></Col>
             <Col span={8}><Form.Item label="Slip No." name="lrNumber"><Input placeholder="Challan / Slip number" /></Form.Item></Col>
           </Row>
           <Row gutter={12}>
             <Col span={12}><Form.Item label="Supplier" name="supplierId"><Select showSearch optionFilterProp="label" allowClear options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} /></Form.Item></Col>
-            <Col span={12}><Form.Item label="Purchase Order" name="purchaseOrderId"><Select showSearch optionFilterProp="label" allowClear options={pos.map((p: any) => ({ value: p.id, label: `${p.poNumber} — ${p.supplier?.name ?? ''}` }))} /></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item label="Commodity" name="commodityId">
+                <Select showSearch optionFilterProp="label" allowClear
+                  options={commodities.map((c: any) => ({ value: c.id, label: c.name }))}
+                  onChange={onFormDateOrCommodityChange} />
+              </Form.Item>
+            </Col>
           </Row>
           <Row gutter={12}>
             <Col span={12}><Form.Item label="Customer (Buyer)" name="customerId"><Select showSearch optionFilterProp="label" allowClear options={customers.map((c: any) => ({ value: c.id, label: c.name }))} /></Form.Item></Col>
-            <Col span={12}><Form.Item label="Sales Order" name="salesOrderId"><Select showSearch optionFilterProp="label" allowClear options={sos.map((s: any) => ({ value: s.id, label: `${s.soNumber} — ${s.customer?.name ?? ''}` }))} /></Form.Item></Col>
           </Row>
           <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Weight (Kg)</Divider>
           <Row gutter={12}>

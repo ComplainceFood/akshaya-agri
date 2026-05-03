@@ -1,59 +1,49 @@
 import { corsResponse, json, error } from '../_shared/cors.ts'
-import { requireAuth, requireRole, getAdminClient } from '../_shared/auth.ts'
-import { getNextNumber } from '../_shared/sequence.ts'
+import { requireAuth, getAdminClient } from '../_shared/auth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return corsResponse()
 
-  const { user, response: authResponse } = await requireAuth(req)
+  const { response: authResponse } = await requireAuth(req)
   if (authResponse) return authResponse
 
   const db = getAdminClient()
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
   const last = parts[parts.length - 1]
-  const secondLast = parts[parts.length - 2]
-
-  // PATCH /purchase-orders/:id/status
-  if (req.method === 'PATCH' && last === 'status') {
-    const id = secondLast
-    const { status } = await req.json()
-    const { data, error: dbErr } = await db.from('PurchaseOrder').update({ status }).eq('id', id).select().single()
-    if (dbErr) return error(dbErr.message)
-    return json(data)
-  }
-
   const id = last !== 'purchase-orders' ? last : null
 
-  // GET /purchase-orders
+  // GET /purchase-orders?date=YYYY-MM-DD&commodityId=xxx
   if (req.method === 'GET' && !id) {
-    const supplierId = url.searchParams.get('supplierId')
-    const status = url.searchParams.get('status')
-    let query = db.from('PurchaseOrder')
-      .select('*, supplier:Supplier(*), commodity:Commodity(*)')
-      .order('orderDate', { ascending: false })
-    if (supplierId) query = query.eq('supplierId', supplierId)
-    if (status) query = query.eq('status', status)
+    const date = url.searchParams.get('date')
+    const commodityId = url.searchParams.get('commodityId')
+    let query = db.from('DailyPurchaseRate')
+      .select('*, commodity:Commodity(id,name)')
+      .order('rateDate', { ascending: false })
+    if (date) query = query.eq('rateDate', date)
+    if (commodityId) query = query.eq('commodityId', commodityId)
     const { data } = await query
     return json(data)
   }
 
   // GET /purchase-orders/:id
   if (req.method === 'GET' && id) {
-    const { data } = await db.from('PurchaseOrder')
-      .select('*, supplier:Supplier(*), commodity:Commodity(*), deliveries:Delivery(*)')
+    const { data } = await db.from('DailyPurchaseRate')
+      .select('*, commodity:Commodity(id,name)')
       .eq('id', id).single()
     return json(data)
   }
 
-  // POST /purchase-orders
+  // POST — upsert so setting rate twice on same day just updates
   if (req.method === 'POST') {
     const body = await req.json()
-    const poNumber = await getNextNumber(db, 'PO')
     const now = new Date().toISOString()
-    const { data, error: dbErr } = await db.from('PurchaseOrder')
-      .insert({ ...body, id: crypto.randomUUID(), poNumber, status: 'CONFIRMED', createdAt: now, updatedAt: now })
-      .select('*, supplier:Supplier(*), commodity:Commodity(*)')
+    const { data, error: dbErr } = await db.from('DailyPurchaseRate')
+      .upsert(
+        { ...body, id: body.id ?? crypto.randomUUID(), updatedAt: now },
+        { onConflict: 'rateDate,commodityId', ignoreDuplicates: false }
+      )
+      .select('*, commodity:Commodity(id,name)')
       .single()
     if (dbErr) return error(dbErr.message)
     return json(data, 201)
@@ -62,8 +52,9 @@ Deno.serve(async (req) => {
   // PUT /purchase-orders/:id
   if (req.method === 'PUT' && id) {
     const body = await req.json()
-    const { data, error: dbErr } = await db.from('PurchaseOrder').update(body).eq('id', id)
-      .select('*, supplier:Supplier(*), commodity:Commodity(*)')
+    const { data, error: dbErr } = await db.from('DailyPurchaseRate')
+      .update({ ...body, updatedAt: new Date().toISOString() }).eq('id', id)
+      .select('*, commodity:Commodity(id,name)')
       .single()
     if (dbErr) return error(dbErr.message)
     return json(data)
@@ -71,13 +62,9 @@ Deno.serve(async (req) => {
 
   // DELETE /purchase-orders/:id
   if (req.method === 'DELETE' && id) {
-    const roleCheck = requireRole(user.role, 'ADMIN')
-    if (roleCheck) return roleCheck
-    const { data: deliveries } = await db.from('Delivery').select('id').eq('purchaseOrderId', id).limit(1)
-    if (deliveries && deliveries.length > 0) return error('Cannot cancel a purchase order that has deliveries')
-    const { data, error: dbErr } = await db.from('PurchaseOrder').update({ status: 'CANCELLED' }).eq('id', id).select().single()
+    const { error: dbErr } = await db.from('DailyPurchaseRate').delete().eq('id', id)
     if (dbErr) return error(dbErr.message)
-    return json(data)
+    return json({ success: true })
   }
 
   return error('Not found', 404)
