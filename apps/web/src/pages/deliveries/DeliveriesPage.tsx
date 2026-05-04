@@ -296,7 +296,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
 
   const columns = [
     {
-      title: 'Slip No.', key: 'slip', width: 100, fixed: 'left' as const,
+      title: 'Slip No.', key: 'slip', width: 120, fixed: 'left' as const,
       render: (_: any, raw: any) => {
         const r = row(raw)
         const incomplete = !r.supplierId || !r.commodityId || !r.purchaseRate
@@ -308,7 +308,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
         )
       }
     },
-    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 95, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 100, render: (v: string) => <span className="nowrap">{dayjs(v).format('DD/MM/YYYY')}</span> },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110 },
     { title: 'Supplier', key: 'supplier', width: 130, render: (_: any, raw: any) => row(raw).supplier?.name ?? <span style={{ color: '#bbb' }}>—</span> },
     { title: 'Commodity', key: 'commodity', width: 110, render: (_: any, raw: any) => row(raw).commodity?.name ?? <span style={{ color: '#bbb' }}>—</span> },

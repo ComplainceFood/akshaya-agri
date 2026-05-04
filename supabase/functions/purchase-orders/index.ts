@@ -34,28 +34,34 @@ Deno.serve(async (req) => {
     return json(data)
   }
 
-  // POST - upsert so setting rate twice on same day just updates
+  // POST - insert or update if same rateDate+commodityId already exists
   if (req.method === 'POST') {
     const body = await req.json()
-    const now = new Date().toISOString()
-    const { data, error: dbErr } = await db.from('DailyPurchaseRate')
-      .upsert(
-        { ...body, id: body.id ?? crypto.randomUUID(), updatedAt: now },
-        { onConflict: 'rateDate,commodityId', ignoreDuplicates: false }
-      )
-      .select('*, commodity:Commodity(id,name)')
-      .single()
+    const { rateDate, commodityId, ratePerQuintal, notes } = body
+    // Check if a rate already exists for this date+commodity
+    const { data: existing } = await db.from('DailyPurchaseRate')
+      .select('id').eq('rateDate', rateDate).eq('commodityId', commodityId).maybeSingle()
+    let data, dbErr
+    if (existing) {
+      ;({ data, error: dbErr } = await db.from('DailyPurchaseRate')
+        .update({ ratePerQuintal, notes })
+        .eq('id', existing.id)
+        .select('*, commodity:Commodity(id,name)').single())
+    } else {
+      ;({ data, error: dbErr } = await db.from('DailyPurchaseRate')
+        .insert({ id: crypto.randomUUID(), rateDate, commodityId, ratePerQuintal, notes })
+        .select('*, commodity:Commodity(id,name)').single())
+    }
     if (dbErr) return error(dbErr.message)
     return json(data, 201)
   }
 
   // PUT /purchase-orders/:id
   if (req.method === 'PUT' && id) {
-    const body = await req.json()
+    const { rateDate, commodityId, ratePerQuintal, notes } = await req.json()
     const { data, error: dbErr } = await db.from('DailyPurchaseRate')
-      .update({ ...body, updatedAt: new Date().toISOString() }).eq('id', id)
-      .select('*, commodity:Commodity(id,name)')
-      .single()
+      .update({ rateDate, commodityId, ratePerQuintal, notes }).eq('id', id)
+      .select('*, commodity:Commodity(id,name)').single()
     if (dbErr) return error(dbErr.message)
     return json(data)
   }

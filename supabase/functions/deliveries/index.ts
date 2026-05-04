@@ -74,14 +74,26 @@ Deno.serve(async (req) => {
   if (req.method === 'GET' && !id) {
     const { supplierId, customerId, from, to } = Object.fromEntries(url.searchParams)
     let query = db.from('Delivery')
-      .select('*, supplier:Supplier(id,name), customer:Customer(id,name), commodity:Commodity(id,name)')
+      .select('*, supplier:Supplier(id,name), customer:Customer(id,name)')
       .order('lrNumber', { ascending: true, nullsFirst: false })
     if (supplierId) query = query.eq('supplierId', supplierId)
     if (customerId) query = query.eq('customerId', customerId)
     if (from) query = query.gte('deliveryDate', from)
     if (to) query = query.lte('deliveryDate', to)
-    const { data } = await query
-    return json(data)
+    const { data: deliveries } = await query
+
+    // Enrich with commodity manually (PostgREST FK join unreliable for text PKs)
+    const commodityIds = [...new Set((deliveries || []).map((d: any) => d.commodityId).filter(Boolean))]
+    let commodityMap: Record<string, any> = {}
+    if (commodityIds.length > 0) {
+      const { data: comms } = await db.from('Commodity').select('id,name').in('id', commodityIds)
+      for (const c of (comms || [])) commodityMap[c.id] = c
+    }
+    const enriched = (deliveries || []).map((d: any) => ({
+      ...d,
+      commodity: d.commodityId ? (commodityMap[d.commodityId] ?? null) : null,
+    }))
+    return json(enriched)
   }
 
   // GET /deliveries/:id

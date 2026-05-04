@@ -90,7 +90,7 @@ function PaymentForm({ type, suppliers, customers }: { type: 'supplier' | 'custo
           <BankOutlined style={{ color: '#2e7d32', marginRight: 6 }} />
           <b>{selectedSupplier.bankName}</b>
           {selectedSupplier.bankAccount && <span style={{ color: '#555', marginLeft: 8 }}>A/C: {selectedSupplier.bankAccount}</span>}
-          {selectedSupplier.ifscCode && <span style={{ color: '#555', marginLeft: 8 }}>IFSC: {selectedSupplier.ifscCode}</span>}
+          {(selectedSupplier.ifscCode || selectedSupplier.bankIfsc) && <span style={{ color: '#555', marginLeft: 8 }}>IFSC: {selectedSupplier.ifscCode || selectedSupplier.bankIfsc}</span>}
         </div>
       )}
 

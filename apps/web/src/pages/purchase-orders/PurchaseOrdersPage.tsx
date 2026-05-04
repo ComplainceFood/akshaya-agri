@@ -54,7 +54,7 @@ export default function PurchaseRatesPage() {
       if (editing) { await update({ id: editing.id, ...payload }); message.success('Rate updated') }
       else { await create(payload); message.success('Purchase rate saved') }
       setOpen(false)
-    } catch { message.error('Error saving') }
+    } catch (e: any) { message.error(e?.response?.data?.error || e?.message || 'Error saving') }
   }
 
   function patch(id: string, fields: Record<string, any>) {
