@@ -32,9 +32,9 @@ function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commoditi
   if (!commodities.length) return null
 
   const todayRates = commodities.map((c: any) => {
-    const pr = purchaseOrders.find((p: any) => p.commodityId === c.id && p.rateDate === todayStr)
-    const sr = salesOrders.find((s: any) => s.commodityId === c.id && s.rateDate === todayStr)
-    return { ...c, purchaseRate: pr?.rate ?? null, saleRate: sr?.rate ?? null }
+    const pr = purchaseOrders.find((p: any) => p.commodityId === c.id && p.rateDate?.split('T')[0] === todayStr)
+    const sr = salesOrders.find((s: any) => s.commodityId === c.id && s.rateDate?.split('T')[0] === todayStr)
+    return { ...c, purchaseRate: pr?.ratePerQuintal ?? null, saleRate: sr?.ratePerQuintal ?? null }
   }).filter((c: any) => c.purchaseRate != null || c.saleRate != null)
 
   if (!todayRates.length) return (
@@ -89,14 +89,14 @@ export default function Dashboard() {
     ? ((data.thisMonth.margin / data.thisMonth.saleValue) * 100) : 0
 
   const recentColumns = [
-    { title: 'Slip No.', dataIndex: 'lrNumber', key: 'lr', width: 100, render: (v: string, r: any) => <b>{v || r.deliveryNumber}</b> },
-    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 90, render: (v: string) => dayjs(v).format('DD/MM/YY') },
-    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', ellipsis: true },
+    { title: 'Slip No.', dataIndex: 'lrNumber', key: 'lr', width: 120, render: (v: string, r: any) => <b className="nowrap">{v || r.deliveryNumber}</b> },
+    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 90, render: (v: string) => <span className="nowrap">{dayjs(v).format('DD/MM/YY')}</span> },
+    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 140, ellipsis: true },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity', width: 110 },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110 },
-    { title: 'Net Wt', dataIndex: 'adjustedWeight', key: 'wt', width: 90, render: (v: number) => fmtKg(v ?? 0) },
-    { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', width: 130, render: (v: number) => formatINR(v) },
-    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', width: 120, render: (v: number) => v ? formatINR(v) : '-' },
+    { title: 'Net Wt', dataIndex: 'adjustedWeight', key: 'wt', width: 100, render: (v: number) => <span className="nowrap">{fmtKg(v ?? 0)}</span> },
+    { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', width: 130, render: (v: number) => <span className="nowrap">{formatINR(v)}</span> },
+    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', width: 120, render: (v: number) => v ? <span className="nowrap">{formatINR(v)}</span> : '-' },
     {
       title: 'Margin', key: 'margin', width: 110,
       render: (_: any, r: any) => {
