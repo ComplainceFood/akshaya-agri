@@ -13,7 +13,8 @@ import { requireAuth } from '../_shared/auth.ts'
 function parseRows(text: string): any[] {
   const rows: any[] = []
   const productList = 'MAIZE|HUSK|COAL|BIOMASS|RICE|WHEAT|PADDY|SOYBEAN|SUNFLOWER'
-  const recordRe = new RegExp(`(${productList})(\\d{10})`, 'gi')
+  // Allow optional suffix after product name e.g. "MAIZE-BAGS", "MAIZE BAGS"
+  const recordRe = new RegExp(`(${productList})(?:[-\\s][A-Z]+)?(\\d{10})`, 'gi')
 
   // Each PRODUCT+ChallanNo marks the END of that record's data in the flat text
   const markers: Array<{ matchStart: number; matchEnd: number; product: string; challanNo: string }> = []

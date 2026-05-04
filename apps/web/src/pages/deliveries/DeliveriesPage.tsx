@@ -308,16 +308,18 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
         )
       }
     },
-    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 100, render: (v: string) => <span className="nowrap">{dayjs(v).format('DD/MM/YYYY')}</span> },
-    { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110 },
-    { title: 'Supplier', key: 'supplier', width: 110, ellipsis: true, render: (_: any, raw: any) => row(raw).supplier?.name ?? <span style={{ color: '#bbb' }}>-</span> },
-    { title: 'Commodity', key: 'commodity', width: 110, ellipsis: true, render: (_: any, raw: any) => row(raw).commodity?.name ?? <span style={{ color: '#bbb' }}>-</span> },
+    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 100, sorter: (a: any, b: any) => a.deliveryDate.localeCompare(b.deliveryDate), render: (v: string) => <span className="nowrap">{dayjs(v).format('DD/MM/YYYY')}</span> },
+    { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110, sorter: (a: any, b: any) => (a.vehicleNumber ?? '').localeCompare(b.vehicleNumber ?? '') },
+    { title: 'Supplier', key: 'supplier', width: 110, ellipsis: true, sorter: (a: any, b: any) => (a.supplier?.name ?? '').localeCompare(b.supplier?.name ?? ''), render: (_: any, raw: any) => row(raw).supplier?.name ?? <span style={{ color: '#bbb' }}>-</span> },
+    { title: 'Commodity', key: 'commodity', width: 110, ellipsis: true, sorter: (a: any, b: any) => (a.commodity?.name ?? '').localeCompare(b.commodity?.name ?? ''), render: (_: any, raw: any) => row(raw).commodity?.name ?? <span style={{ color: '#bbb' }}>-</span> },
     {
       title: 'Net Wt (Kg)', key: 'netWt', width: 100,
+      sorter: (a: any, b: any) => (derivedMap.get(a.id)?.netWeight ?? 0) - (derivedMap.get(b.id)?.netWeight ?? 0),
       render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '-'}</b>
     },
     {
       title: 'Rate (₹/Qt)', key: 'rate', width: 105,
+      sorter: (a: any, b: any) => (Number(row(a).purchaseRate) || 0) - (Number(row(b).purchaseRate) || 0),
       render: (_: any, raw: any) => {
         const r = row(raw)
         return <InlineNum value={r.purchaseRate} step={0.5} decimals={2} onSave={v => patch(r.id, { purchaseRate: v })} prefix="₹" />
@@ -325,6 +327,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     },
     {
       title: 'Purchase Value', key: 'pv', width: 120,
+      sorter: (a: any, b: any) => (derivedMap.get(a.id)?.purchaseValue ?? 0) - (derivedMap.get(b.id)?.purchaseValue ?? 0),
       render: (_: any, raw: any) => formatINR(derivedMap.get(raw.id)?.purchaseValue)
     },
     {
@@ -365,6 +368,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     },
     {
       title: 'Net Payable', key: 'netPay', width: 115,
+      sorter: (a: any, b: any) => (derivedMap.get(a.id)?.netPayable ?? 0) - (derivedMap.get(b.id)?.netPayable ?? 0),
       render: (_: any, raw: any) => {
         const { netPayable } = derivedMap.get(raw.id) ?? {}
         return netPayable != null ? <b style={{ color: '#1677ff' }}>{formatINR(netPayable)}</b> : <span style={{ color: '#ccc' }}>-</span>
@@ -372,6 +376,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     },
     {
       title: 'Sale Value', key: 'sv', width: 110,
+      sorter: (a: any, b: any) => (derivedMap.get(a.id)?.saleValue ?? 0) - (derivedMap.get(b.id)?.saleValue ?? 0),
       render: (_: any, raw: any) => {
         const { saleValue } = derivedMap.get(raw.id) ?? {}
         return saleValue != null ? formatINR(saleValue) : '-'
@@ -379,6 +384,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     },
     {
       title: 'Margin', key: 'margin', width: 105,
+      sorter: (a: any, b: any) => (derivedMap.get(a.id)?.grossMargin ?? 0) - (derivedMap.get(b.id)?.grossMargin ?? 0),
       render: (_: any, raw: any) => {
         const { grossMargin } = derivedMap.get(raw.id) ?? {}
         if (grossMargin == null) return <span style={{ color: '#ccc' }}>-</span>
