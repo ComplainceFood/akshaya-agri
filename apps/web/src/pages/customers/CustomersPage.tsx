@@ -51,7 +51,7 @@ export default function CustomersPage() {
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Contact Person', dataIndex: 'contactPerson', key: 'cp' },
     { title: 'Phone', dataIndex: 'phone', key: 'phone' },
-    { title: 'Email', dataIndex: 'email', key: 'email', render: (v: string) => v ? <a href={`mailto:${v}`}>{v}</a> : <span style={{ color: '#bbb' }}>—</span> },
+    { title: 'Email', dataIndex: 'email', key: 'email', render: (v: string) => v ? <a href={`mailto:${v}`}>{v}</a> : <span style={{ color: '#bbb' }}>-</span> },
     { title: 'GST Number', dataIndex: 'gstNumber', key: 'gst', render: (v: string) => v || '-' },
     { title: 'Bill To', key: 'billing', render: (_: any, r: any) => [r.billingVillage, r.billingDistrict, r.billingState].filter(Boolean).join(', ') || '-' },
     { title: 'Payment Terms', dataIndex: 'paymentTerms', key: 'pt', render: (v: number) => v ? `${v} days` : '-' },

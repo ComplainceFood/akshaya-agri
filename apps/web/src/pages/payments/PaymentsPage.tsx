@@ -153,8 +153,8 @@ export default function PaymentsPage() {
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (v: number) => <b style={{ color: '#cf1322' }}>{formatINR(v)}</b> },
     { title: 'Mode', dataIndex: 'paymentMode', key: 'mode', width: 90, render: (v: string) => <Tag color={modeColor[v] ?? 'default'}>{v}</Tag> },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
-    { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true, render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
+    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || <span style={{ color: '#ccc' }}>-</span> },
+    { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true, render: (v: string) => v || <span style={{ color: '#ccc' }}>-</span> },
   ]
 
   const crColumns = [
@@ -163,8 +163,8 @@ export default function PaymentsPage() {
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer' },
     { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
     { title: 'Mode', dataIndex: 'paymentMode', key: 'mode', width: 90, render: (v: string) => <Tag color={modeColor[v] ?? 'default'}>{v}</Tag> },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
-    { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true, render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
+    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || <span style={{ color: '#ccc' }}>-</span> },
+    { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true, render: (v: string) => v || <span style={{ color: '#ccc' }}>-</span> },
   ]
 
   return (

@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
   const last = parts[parts.length - 1]
   const secondLast = parts[parts.length - 2]
 
-  // POST /invoices/preview  — group deliveries into draft invoices (no DB write)
+  // POST /invoices/preview  - group deliveries into draft invoices (no DB write)
   if (req.method === 'POST' && last === 'preview') {
     const { from, to, customerIds } = await req.json()
     let query = db.from('Delivery')
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     return json(Object.values(groups))
   }
 
-  // POST /invoices/generate  — create Invoice + InvoiceItem rows for selected groups
+  // POST /invoices/generate  - create Invoice + InvoiceItem rows for selected groups
   if (req.method === 'POST' && last === 'generate') {
     const { groups } = await req.json()  // array of preview groups
     const created = []
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     return json(created, 201)
   }
 
-  // POST /invoices/:id/send  — send invoice via Resend
+  // POST /invoices/:id/send  - send invoice via Resend
   if (req.method === 'POST' && secondLast !== 'invoices' && last === 'send') {
     const id = secondLast
     const { data: inv } = await db.from('Invoice')

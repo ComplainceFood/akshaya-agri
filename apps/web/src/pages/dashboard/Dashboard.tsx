@@ -40,7 +40,7 @@ function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commoditi
   if (!todayRates.length) return (
     <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', border: '1px solid #ffe58f' }}>
       <Typography.Text type="warning" style={{ fontSize: 13 }}>
-        ⚠ No rate card set for today ({dayjs().format('DD MMM YYYY')}) — go to Purchase Rates / Sale Rates to add today's rates.
+        ⚠ No rate card set for today ({dayjs().format('DD MMM YYYY')}) - go to Purchase Rates / Sale Rates to add today's rates.
       </Typography.Text>
     </Card>
   )
@@ -149,7 +149,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Today's Rate Card ── */}
-      <SectionLabel><BarChartOutlined /> Today's Rate Card — {dayjs().format('DD MMM YYYY')}</SectionLabel>
+      <SectionLabel><BarChartOutlined /> Today's Rate Card - {dayjs().format('DD MMM YYYY')}</SectionLabel>
       <TodayRateCard commodities={commodities} purchaseOrders={purchaseOrders} salesOrders={salesOrders} />
 
       {/* ── Today ── */}

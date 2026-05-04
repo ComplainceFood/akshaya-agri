@@ -310,8 +310,8 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     },
     { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 100, render: (v: string) => <span className="nowrap">{dayjs(v).format('DD/MM/YYYY')}</span> },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110 },
-    { title: 'Supplier', key: 'supplier', width: 110, ellipsis: true, render: (_: any, raw: any) => row(raw).supplier?.name ?? <span style={{ color: '#bbb' }}>—</span> },
-    { title: 'Commodity', key: 'commodity', width: 110, ellipsis: true, render: (_: any, raw: any) => row(raw).commodity?.name ?? <span style={{ color: '#bbb' }}>—</span> },
+    { title: 'Supplier', key: 'supplier', width: 110, ellipsis: true, render: (_: any, raw: any) => row(raw).supplier?.name ?? <span style={{ color: '#bbb' }}>-</span> },
+    { title: 'Commodity', key: 'commodity', width: 110, ellipsis: true, render: (_: any, raw: any) => row(raw).commodity?.name ?? <span style={{ color: '#bbb' }}>-</span> },
     {
       title: 'Net Wt (Kg)', key: 'netWt', width: 100,
       render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '-'}</b>
@@ -459,7 +459,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
           style={{ marginBottom: 10 }}
           message={
             <span>
-              <b>{untaggedCount}</b> {untaggedCount === 1 ? 'delivery is' : 'deliveries are'} missing supplier, commodity, or purchase rate — reports will show incomplete data.{' '}
+              <b>{untaggedCount}</b> {untaggedCount === 1 ? 'delivery is' : 'deliveries are'} missing supplier, commodity, or purchase rate - reports will show incomplete data.{' '}
               <a onClick={selectAllUntagged}>Select all untagged rows</a> to fill them in bulk.
             </span>
           }
