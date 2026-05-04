@@ -43,11 +43,14 @@ export default function CommoditiesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Commodities</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Commodities</Typography.Title>
+          <div className="page-subtitle">Manage agricultural commodities and HSN codes</div>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add Commodity</Button>
       </div>
-      <Table dataSource={commodities} columns={columns} rowKey="id" loading={isLoading} />
+      <Table dataSource={commodities} columns={columns} rowKey="id" loading={isLoading} size="small" pagination={{ pageSize: 20, showTotal: t => `${t} commodities` }} />
       <Modal title={editing ? 'Edit Commodity' : 'Add Commodity'} open={open} onOk={onSave} onCancel={() => { setOpen(false); setEditing(null) }} width={420}>
         <Form form={form} layout="vertical" size="small">
           <Form.Item label="Commodity Name" name="name" rules={[{ required: true }]}>

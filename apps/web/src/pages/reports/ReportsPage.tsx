@@ -409,7 +409,12 @@ function StockTab() {
 export default function ReportsPage() {
   return (
     <div>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>Reports</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Reports</Typography.Title>
+          <div className="page-subtitle">P&L, supplier/customer statements, cash flow, commodity summary</div>
+        </div>
+      </div>
       <Tabs
         items={[
           { key: 'pnl', label: <><BarChartOutlined /> P&amp;L / Deliveries</>, children: <PnLTab /> },

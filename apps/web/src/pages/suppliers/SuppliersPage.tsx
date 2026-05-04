@@ -61,15 +61,18 @@ export default function SuppliersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Suppliers</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Suppliers</Typography.Title>
+          <div className="page-subtitle">Manage farmers and raw material suppliers</div>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add Supplier</Button>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <Input prefix={<SearchOutlined />} placeholder="Search name, phone, village, district…" style={{ width: 320 }} allowClear value={search} onChange={e => setSearch(e.target.value)} />
         <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>{filtered.length} supplier{filtered.length !== 1 ? 's' : ''}</span>
       </div>
-      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
+      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" pagination={{ pageSize: 20, showTotal: t => `${t} suppliers` }} />
 
       <Modal title={editing ? 'Edit Supplier' : 'Add Supplier'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={600}>
         <Form form={form} layout="vertical" size="small">

@@ -69,15 +69,18 @@ export default function CustomersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Customers (Buyers)</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Customers</Typography.Title>
+          <div className="page-subtitle">Manage buyers and billing details</div>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add Customer</Button>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <Input prefix={<SearchOutlined />} placeholder="Search name, phone, GST…" style={{ width: 300 }} allowClear value={search} onChange={e => setSearch(e.target.value)} />
         <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>{filtered.length} customer{filtered.length !== 1 ? 's' : ''}</span>
       </div>
-      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
+      <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" pagination={{ pageSize: 20, showTotal: t => `${t} customers` }} />
 
       <Modal title={editing ? 'Edit Customer' : 'Add Customer'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={600}>
         <Form form={form} layout="vertical" size="small">

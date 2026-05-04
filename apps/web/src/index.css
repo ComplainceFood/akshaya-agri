@@ -1,2 +1,163 @@
 * { box-sizing: border-box; }
-body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f6fa; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────── */
+.app-sider { background: linear-gradient(180deg, #1a2e1a 0%, #0f1f0f 100%) !important; }
+.app-sider .ant-menu { background: transparent !important; border: none !important; }
+.app-sider .ant-menu-item {
+  border-radius: 7px !important;
+  margin: 1px 10px !important;
+  width: calc(100% - 20px) !important;
+  height: 38px !important;
+  line-height: 38px !important;
+  color: rgba(255,255,255,0.65) !important;
+  font-size: 13px !important;
+  transition: all 0.15s !important;
+}
+.app-sider .ant-menu-item:hover { background: rgba(255,255,255,0.08) !important; color: #fff !important; }
+.app-sider .ant-menu-item-selected {
+  background: rgba(46,125,50,0.6) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+.app-sider .ant-menu-item .anticon { font-size: 15px !important; }
+.nav-section { padding: 14px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.3); }
+.ant-menu-item-divider { background: rgba(255,255,255,0.08) !important; margin: 6px 16px !important; }
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+.app-header {
+  background: #fff !important;
+  padding: 0 24px !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 0 #f0f0f0;
+  height: 56px !important;
+  line-height: 56px !important;
+}
+.app-content { margin: 20px 24px; min-height: calc(100vh - 96px); }
+
+/* ── Page structure ────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.page-title {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #1a1a1a !important;
+  margin: 0 !important;
+}
+.page-subtitle {
+  font-size: 13px;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* ── Stat cards ────────────────────────────────────────────────────────────── */
+.stat-card { border-radius: 10px !important; border: 1px solid #f0f0f0 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important; }
+.stat-card .ant-card-body { padding: 16px 18px !important; }
+.stat-card .ant-statistic-title { font-size: 12px !important; color: #888 !important; font-weight: 500 !important; margin-bottom: 4px; }
+.stat-card .ant-statistic-content-value { font-size: 18px !important; font-weight: 700 !important; }
+
+/* ── Tables ────────────────────────────────────────────────────────────────── */
+.ant-table-wrapper { border-radius: 10px; overflow: hidden; border: 1px solid #f0f0f0; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.ant-table-thead > tr > th {
+  background: #fafbfc !important;
+  font-weight: 600 !important;
+  font-size: 11.5px !important;
+  color: #666 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #f0f0f0 !important;
+  padding: 10px 12px !important;
+}
+.ant-table-tbody > tr > td { padding: 9px 12px !important; border-bottom: 1px solid #f8f8f8 !important; }
+.ant-table-tbody > tr:hover > td { background: #f6fbf6 !important; }
+.ant-table-tbody > tr:last-child > td { border-bottom: none !important; }
+.ant-table-summary > tr > td { background: #fafbfc !important; font-weight: 600 !important; padding: 10px 12px !important; border-top: 2px solid #f0f0f0 !important; }
+
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
+.ant-card { border-radius: 10px !important; border: 1px solid #f0f0f0 !important; }
+.ant-card-small > .ant-card-body { padding: 14px 16px !important; }
+.ant-card-head { border-bottom: 1px solid #f5f5f5 !important; min-height: 44px !important; padding: 0 16px !important; font-weight: 600 !important; font-size: 13px !important; }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────── */
+.ant-tabs-tab { font-size: 13px !important; padding: 8px 0 !important; }
+.ant-tabs-tab-active .ant-tabs-tab-btn { font-weight: 600 !important; color: #2e7d32 !important; }
+.ant-tabs-ink-bar { background: #2e7d32 !important; }
+.ant-tabs-tab:hover .ant-tabs-tab-btn { color: #2e7d32 !important; }
+.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active { background: #fff !important; border-color: #f0f0f0 !important; font-weight: 600 !important; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.ant-btn-primary { background: #2e7d32 !important; border-color: #2e7d32 !important; font-weight: 500 !important; }
+.ant-btn-primary:not(:disabled):hover { background: #388e3c !important; border-color: #388e3c !important; }
+.ant-btn { border-radius: 6px !important; }
+
+/* ── Tags ──────────────────────────────────────────────────────────────────── */
+.ant-tag { border-radius: 4px !important; font-weight: 500 !important; font-size: 11px !important; }
+
+/* ── Form ──────────────────────────────────────────────────────────────────── */
+.ant-form-item-label > label { font-weight: 500 !important; color: #555 !important; font-size: 12px !important; }
+.ant-input, .ant-input-number, .ant-picker, .ant-select-selector { border-radius: 6px !important; }
+.ant-divider-inner-text { font-size: 12px !important; color: #888 !important; font-weight: 600 !important; }
+
+/* ── Modals ────────────────────────────────────────────────────────────────── */
+.ant-modal-content { border-radius: 12px !important; overflow: hidden; }
+.ant-modal-header { padding: 16px 24px 12px !important; border-bottom: 1px solid #f5f5f5 !important; }
+.ant-modal-title { font-weight: 700 !important; font-size: 15px !important; }
+.ant-modal-footer { border-top: 1px solid #f5f5f5 !important; padding: 12px 24px !important; }
+
+/* ── Alerts ────────────────────────────────────────────────────────────────── */
+.ant-alert { border-radius: 8px !important; }
+
+/* ── Empty state ───────────────────────────────────────────────────────────── */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 52px 24px; }
+.empty-state .empty-icon { font-size: 52px; margin-bottom: 14px; opacity: 0.18; }
+.empty-state h3 { margin: 0 0 6px; color: #444; font-size: 15px; font-weight: 600; }
+.empty-state p { margin: 0; font-size: 13px; color: #999; text-align: center; max-width: 280px; line-height: 1.6; }
+
+/* ── Filter bar ────────────────────────────────────────────────────────────── */
+.filter-bar {
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+/* ── Dashboard section label ───────────────────────────────────────────────── */
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #999;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-label::after { content: ''; flex: 1; height: 1px; background: #f0f0f0; }
+
+/* ── Rate card badge ───────────────────────────────────────────────────────── */
+.rate-card { border-radius: 10px !important; border: 1px solid #f0f0f0 !important; overflow: hidden; }
+.rate-card-header { background: linear-gradient(135deg, #2e7d32, #43a047); padding: 10px 16px; color: #fff; font-weight: 600; font-size: 13px; }
+.rate-card-body { padding: 12px 16px; }
+.rate-value { font-size: 22px; font-weight: 700; color: #1a1a1a; }
+.rate-label { font-size: 11px; color: #999; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+/* ── Progress bar color ────────────────────────────────────────────────────── */
+.ant-progress-bg { background: #2e7d32 !important; }
+
+/* ── Breadcrumb ────────────────────────────────────────────────────────────── */
+.ant-breadcrumb { font-size: 12px; }

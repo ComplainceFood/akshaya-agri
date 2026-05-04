@@ -58,11 +58,14 @@ export default function UsersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Users</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Users</Typography.Title>
+          <div className="page-subtitle">Manage staff accounts and access roles</div>
+        </div>
         {currentUser?.role === 'ADMIN' && <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add User</Button>}
       </div>
-      <Table dataSource={users} columns={columns} rowKey="id" loading={isLoading} />
+      <Table dataSource={users} columns={columns} rowKey="id" loading={isLoading} size="small" pagination={{ pageSize: 20 }} />
       <Modal title={editing ? 'Edit User' : 'Add User'} open={open} onOk={onSave} onCancel={() => setOpen(false)}>
         <Form form={form} layout="vertical">
           <Form.Item label="Full Name" name="name" rules={[{ required: true }]}><Input /></Form.Item>

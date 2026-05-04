@@ -86,8 +86,11 @@ export default function PurchaseRatesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Daily Purchase Rates</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Purchase Rates</Typography.Title>
+          <div className="page-subtitle">Set daily commodity purchase rates for supplier billing</div>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Set Rate</Button>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>

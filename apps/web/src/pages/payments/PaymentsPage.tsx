@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker, Typography, message, Card, Statistic, Row, Col } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import {
+  Tabs, Table, Button, Modal, Form, Input, InputNumber, Select,
+  DatePicker, Typography, message, Card, Statistic, Row, Col, Tag, Empty, Space,
+} from 'antd'
+import { PlusOutlined, ArrowDownOutlined, ArrowUpOutlined, BankOutlined } from '@ant-design/icons'
 import {
   useSupplierPayments, useCreateSupplierPayment, useSupplierLedger,
   useCustomerReceipts, useCreateCustomerReceipt, useCustomerLedger,
@@ -11,51 +14,92 @@ import dayjs from 'dayjs'
 
 const PAYMENT_MODES = ['NEFT', 'RTGS', 'IMPS', 'CHEQUE', 'CASH'].map(v => ({ value: v, label: v }))
 
-function SupplierLedger({ supplierId }: { supplierId: string }) {
-  const { data } = useSupplierLedger(supplierId)
+const modeColor: Record<string, string> = {
+  NEFT: 'blue', RTGS: 'purple', IMPS: 'cyan', CHEQUE: 'orange', CASH: 'green',
+}
+
+function LedgerSummary({ type, id }: { type: 'supplier' | 'customer'; id: string }) {
+  const spData = useSupplierLedger(type === 'supplier' ? id : '').data
+  const crData = useCustomerLedger(type === 'customer' ? id : '').data
+  const data = type === 'supplier' ? spData : crData
   if (!data) return null
+
+  const isSupplier = type === 'supplier'
   return (
-    <Row gutter={12} style={{ marginTop: 12 }}>
-      <Col span={8}><Card size="small"><Statistic title="Total Purchase Value" value={formatINR(data.totalPurchase)} /></Card></Col>
-      <Col span={8}><Card size="small"><Statistic title="Total Paid" value={formatINR(data.totalPaid)} valueStyle={{ color: '#2e7d32' }} /></Card></Col>
-      <Col span={8}><Card size="small"><Statistic title="Outstanding" value={formatINR(data.outstanding)} valueStyle={{ color: data.outstanding > 0 ? '#cf1322' : '#2e7d32' }} /></Card></Col>
+    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+      <Col xs={8}>
+        <Card size="small" className="stat-card">
+          <Statistic
+            title={isSupplier ? 'Total Purchase Value' : 'Total Sale Value'}
+            value={formatINR(isSupplier ? data.totalPurchase : data.totalSale)}
+            valueStyle={{ fontSize: 15 }}
+          />
+        </Card>
+      </Col>
+      <Col xs={8}>
+        <Card size="small" className="stat-card">
+          <Statistic
+            title={isSupplier ? 'Total Paid' : 'Total Received'}
+            value={formatINR(isSupplier ? data.totalPaid : data.totalReceived)}
+            valueStyle={{ color: '#2e7d32', fontSize: 15 }}
+            prefix={<ArrowUpOutlined />}
+          />
+        </Card>
+      </Col>
+      <Col xs={8}>
+        <Card size="small" className="stat-card">
+          <Statistic
+            title="Outstanding"
+            value={formatINR(data.outstanding)}
+            valueStyle={{ color: data.outstanding > 0 ? '#cf1322' : '#2e7d32', fontSize: 15 }}
+            prefix={data.outstanding > 0 ? <ArrowDownOutlined /> : undefined}
+          />
+        </Card>
+      </Col>
     </Row>
   )
 }
 
-function CustomerLedger({ customerId }: { customerId: string }) {
-  const { data } = useCustomerLedger(customerId)
-  if (!data) return null
-  return (
-    <Row gutter={12} style={{ marginTop: 12 }}>
-      <Col span={8}><Card size="small"><Statistic title="Total Sale Value" value={formatINR(data.totalSale)} /></Card></Col>
-      <Col span={8}><Card size="small"><Statistic title="Total Received" value={formatINR(data.totalReceived)} valueStyle={{ color: '#2e7d32' }} /></Card></Col>
-      <Col span={8}><Card size="small"><Statistic title="Outstanding" value={formatINR(data.outstanding)} valueStyle={{ color: data.outstanding > 0 ? '#cf1322' : '#2e7d32' }} /></Card></Col>
-    </Row>
-  )
-}
+function PaymentForm({ type, suppliers, customers }: { type: 'supplier' | 'customer'; suppliers: any[]; customers: any[] }) {
+  const isSupplier = type === 'supplier'
+  // Show bank details when a supplier is selected
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null)
+  const selectedSupplier = suppliers.find((s: any) => s.id === selectedSupplierId)
 
-function PaymentForm({ namePrefix, suppliers, customers }: { namePrefix: 'supplier' | 'customer'; suppliers: any[]; customers: any[] }) {
-  const isSupplier = namePrefix === 'supplier'
   return (
     <>
       <Row gutter={12}>
         <Col span={14}>
           <Form.Item label={isSupplier ? 'Supplier' : 'Customer'} name={isSupplier ? 'supplierId' : 'customerId'} rules={[{ required: true }]}>
-            <Select showSearch optionFilterProp="label"
-              options={(isSupplier ? suppliers : customers).map((s: any) => ({ value: s.id, label: s.name }))} />
+            <Select
+              showSearch optionFilterProp="label"
+              options={(isSupplier ? suppliers : customers).map((s: any) => ({ value: s.id, label: s.name }))}
+              onChange={v => isSupplier && setSelectedSupplierId(v)}
+            />
           </Form.Item>
         </Col>
         <Col span={10}>
           <Form.Item label="Date" name={isSupplier ? 'paymentDate' : 'receiptDate'} rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" defaultValue={dayjs()} />
           </Form.Item>
         </Col>
       </Row>
+
+      {isSupplier && selectedSupplier?.bankName && (
+        <div style={{ background: '#f6fbf6', border: '1px solid #c8e6c9', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12 }}>
+          <BankOutlined style={{ color: '#2e7d32', marginRight: 6 }} />
+          <b>{selectedSupplier.bankName}</b>
+          {selectedSupplier.bankAccount && <span style={{ color: '#555', marginLeft: 8 }}>A/C: {selectedSupplier.bankAccount}</span>}
+          {selectedSupplier.ifscCode && <span style={{ color: '#555', marginLeft: 8 }}>IFSC: {selectedSupplier.ifscCode}</span>}
+        </div>
+      )}
+
       <Row gutter={12}>
         <Col span={12}>
           <Form.Item label="Amount (₹)" name="amount" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} step={0.01} />
+            <InputNumber min={0} style={{ width: '100%' }} step={100}
+              formatter={v => `₹ ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={v => v!.replace(/₹\s?|(,*)/g, '') as any} />
           </Form.Item>
         </Col>
         <Col span={12}>
@@ -64,8 +108,8 @@ function PaymentForm({ namePrefix, suppliers, customers }: { namePrefix: 'suppli
           </Form.Item>
         </Col>
       </Row>
-      <Form.Item label="Reference / UTR / Cheque No." name="referenceNumber"><Input /></Form.Item>
-      <Form.Item label="Notes" name="notes"><Input.TextArea rows={2} /></Form.Item>
+      <Form.Item label="Reference / UTR / Cheque No." name="referenceNumber"><Input placeholder="e.g. UTR123456789" /></Form.Item>
+      <Form.Item label="Notes" name="notes"><Input.TextArea rows={2} placeholder="Optional remarks" /></Form.Item>
     </>
   )
 }
@@ -104,68 +148,99 @@ export default function PaymentsPage() {
   }
 
   const spColumns = [
-    { title: 'Payment No.', dataIndex: 'paymentNumber', key: 'no', render: (v: string) => <b>{v}</b> },
-    { title: 'Date', dataIndex: 'paymentDate', key: 'date', render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Payment No.', dataIndex: 'paymentNumber', key: 'no', width: 130, render: (v: string) => <b style={{ color: '#1677ff' }}>{v}</b> },
+    { title: 'Date', dataIndex: 'paymentDate', key: 'date', width: 100, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', render: (v: number) => formatINR(v) },
-    { title: 'Mode', dataIndex: 'paymentMode', key: 'mode' },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || '-' },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (v: number) => <b style={{ color: '#cf1322' }}>{formatINR(v)}</b> },
+    { title: 'Mode', dataIndex: 'paymentMode', key: 'mode', width: 90, render: (v: string) => <Tag color={modeColor[v] ?? 'default'}>{v}</Tag> },
+    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
+    { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true, render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
   ]
 
   const crColumns = [
-    { title: 'Receipt No.', dataIndex: 'receiptNumber', key: 'no', render: (v: string) => <b>{v}</b> },
-    { title: 'Date', dataIndex: 'receiptDate', key: 'date', render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Receipt No.', dataIndex: 'receiptNumber', key: 'no', width: 130, render: (v: string) => <b style={{ color: '#1677ff' }}>{v}</b> },
+    { title: 'Date', dataIndex: 'receiptDate', key: 'date', width: 100, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', render: (v: number) => formatINR(v) },
-    { title: 'Mode', dataIndex: 'paymentMode', key: 'mode' },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || '-' },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
+    { title: 'Mode', dataIndex: 'paymentMode', key: 'mode', width: 90, render: (v: string) => <Tag color={modeColor[v] ?? 'default'}>{v}</Tag> },
+    { title: 'Reference', dataIndex: 'referenceNumber', key: 'ref', render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
+    { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true, render: (v: string) => v || <span style={{ color: '#ccc' }}>—</span> },
   ]
 
   return (
     <div>
-      <Typography.Title level={4} style={{ marginBottom: 12 }}>Payments & Receipts</Typography.Title>
-      <Tabs items={[
-        {
-          key: 'payable', label: 'Supplier Payments (Payable)',
-          children: (
-            <div>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
-                <Select placeholder="Filter by Supplier" style={{ width: 240 }} allowClear showSearch optionFilterProp="label"
-                  options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))}
-                  onChange={v => setSelectedSupplier(v || '')} />
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => { spForm.resetFields(); setSupplierOpen(true) }}>
-                  Record Payment
-                </Button>
-              </div>
-              {selectedSupplier && <SupplierLedger supplierId={selectedSupplier} />}
-              <Table dataSource={spayments} columns={spColumns} rowKey="id" loading={spLoading} size="small" style={{ marginTop: 12 }} />
-            </div>
-          )
-        },
-        {
-          key: 'receivable', label: 'Customer Receipts (Receivable)',
-          children: (
-            <div>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
-                <Select placeholder="Filter by Customer" style={{ width: 240 }} allowClear showSearch optionFilterProp="label"
-                  options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
-                  onChange={v => setSelectedCustomer(v || '')} />
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => { crForm.resetFields(); setCustomerOpen(true) }}>
-                  Record Receipt
-                </Button>
-              </div>
-              {selectedCustomer && <CustomerLedger customerId={selectedCustomer} />}
-              <Table dataSource={receipts} columns={crColumns} rowKey="id" loading={crLoading} size="small" style={{ marginTop: 12 }} />
-            </div>
-          )
-        }
-      ]} />
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Payments & Receipts</Typography.Title>
+          <div className="page-subtitle">Record supplier payments and customer receipts</div>
+        </div>
+      </div>
 
-      <Modal title="Record Supplier Payment" open={supplierOpen} onOk={saveSP} onCancel={() => setSupplierOpen(false)} width={460}>
-        <Form form={spForm} layout="vertical" size="small"><PaymentForm namePrefix="supplier" suppliers={suppliers} customers={customers} /></Form>
+      <Tabs
+        items={[
+          {
+            key: 'payable',
+            label: <Space><ArrowDownOutlined style={{ color: '#cf1322' }} />Supplier Payments</Space>,
+            children: (
+              <div>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+                  <Select
+                    placeholder="Filter by supplier" style={{ width: 260 }} allowClear showSearch
+                    optionFilterProp="label"
+                    options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))}
+                    onChange={v => setSelectedSupplier(v || '')}
+                  />
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => { spForm.resetFields(); setSupplierOpen(true) }}>
+                    Record Payment
+                  </Button>
+                </div>
+                {selectedSupplier && <LedgerSummary type="supplier" id={selectedSupplier} />}
+                {spayments.length === 0 && !spLoading
+                  ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={selectedSupplier ? 'No payments recorded for this supplier' : 'Select a supplier to view payments, or record a new payment'} style={{ padding: '40px 0' }} />
+                  : <Table dataSource={spayments} columns={spColumns} rowKey="id" loading={spLoading} size="small" pagination={{ pageSize: 20, showTotal: t => `${t} payments` }} />
+                }
+              </div>
+            ),
+          },
+          {
+            key: 'receivable',
+            label: <Space><ArrowUpOutlined style={{ color: '#2e7d32' }} />Customer Receipts</Space>,
+            children: (
+              <div>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+                  <Select
+                    placeholder="Filter by customer" style={{ width: 260 }} allowClear showSearch
+                    optionFilterProp="label"
+                    options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+                    onChange={v => setSelectedCustomer(v || '')}
+                  />
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => { crForm.resetFields(); setCustomerOpen(true) }}>
+                    Record Receipt
+                  </Button>
+                </div>
+                {selectedCustomer && <LedgerSummary type="customer" id={selectedCustomer} />}
+                {receipts.length === 0 && !crLoading
+                  ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={selectedCustomer ? 'No receipts recorded for this customer' : 'Select a customer to view receipts, or record a new receipt'} style={{ padding: '40px 0' }} />
+                  : <Table dataSource={receipts} columns={crColumns} rowKey="id" loading={crLoading} size="small" pagination={{ pageSize: 20, showTotal: t => `${t} receipts` }} />
+                }
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      <Modal title={<Space><ArrowDownOutlined style={{ color: '#cf1322' }} />Record Supplier Payment</Space>}
+        open={supplierOpen} onOk={saveSP} onCancel={() => setSupplierOpen(false)} width={480} okText="Record Payment">
+        <Form form={spForm} layout="vertical" size="small" style={{ marginTop: 12 }}>
+          <PaymentForm type="supplier" suppliers={suppliers} customers={customers} />
+        </Form>
       </Modal>
-      <Modal title="Record Customer Receipt" open={customerOpen} onOk={saveCR} onCancel={() => setCustomerOpen(false)} width={460}>
-        <Form form={crForm} layout="vertical" size="small"><PaymentForm namePrefix="customer" suppliers={suppliers} customers={customers} /></Form>
+
+      <Modal title={<Space><ArrowUpOutlined style={{ color: '#2e7d32' }} />Record Customer Receipt</Space>}
+        open={customerOpen} onOk={saveCR} onCancel={() => setCustomerOpen(false)} width={480} okText="Record Receipt">
+        <Form form={crForm} layout="vertical" size="small" style={{ marginTop: 12 }}>
+          <PaymentForm type="customer" suppliers={suppliers} customers={customers} />
+        </Form>
       </Modal>
     </div>
   )

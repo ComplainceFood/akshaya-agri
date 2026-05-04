@@ -85,8 +85,11 @@ export default function SaleRatesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Daily Sale Rates</Typography.Title>
+      <div className="page-header">
+        <div>
+          <Typography.Title level={4} className="page-title">Sale Rates</Typography.Title>
+          <div className="page-subtitle">Set daily commodity sale rates for customer invoicing</div>
+        </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Set Rate</Button>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
