@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant
 import { usePurchaseOrders, useCreatePurchaseOrder, useUpdatePurchaseOrder, useDeletePurchaseOrder, useCommodities } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
 import dayjs from 'dayjs'
+import RateTrendChart from '../../components/RateTrendChart'
 
 function InlineNum({ value, onSave, min = 0, step = 1, prefix, decimals = 0 }: {
   value: number | null | undefined; onSave: (v: number) => void
@@ -100,6 +101,7 @@ export default function PurchaseRatesPage() {
           onChange={v => setFilterCommodity(v || '')} />
         <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>{filtered.length} rate{filtered.length !== 1 ? 's' : ''}</span>
       </div>
+      <RateTrendChart />
       <Table dataSource={filtered} columns={columns} rowKey="id" loading={isLoading} size="small" />
 
       <Modal title={editing ? 'Edit Purchase Rate' : 'Set Purchase Rate'} open={open} onOk={onSave} onCancel={() => setOpen(false)} width={420}>
