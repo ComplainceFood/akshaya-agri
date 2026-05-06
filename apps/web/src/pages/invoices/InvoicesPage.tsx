@@ -5,10 +5,11 @@ import {
 } from 'antd'
 import {
   SendOutlined, FileDoneOutlined, EyeOutlined, DeleteOutlined,
-  ThunderboltOutlined, CalendarOutlined, MailOutlined,
+  ThunderboltOutlined, CalendarOutlined, MailOutlined, FilePdfOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../api/client'
+import { printInvoice, generatePdfBase64 } from './InvoicePrint'
 import { useCustomers, useCommodities } from '../../api/hooks'
 import { formatINR, formatQt } from '../../utils/format'
 import dayjs from 'dayjs'
@@ -48,7 +49,8 @@ function useGenerateInvoices() {
 function useSendInvoice() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => api.post(`/invoices/${id}/send`).then(r => r.data),
+    mutationFn: ({ id, pdfBase64 }: { id: string; pdfBase64?: string }) =>
+      api.post(`/invoices/${id}/send`, { pdfBase64 }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invoices'] }),
   })
 }
@@ -82,11 +84,14 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
 
   async function handleSend() {
     try {
-      await send(id)
-      message.success('Invoice sent successfully')
+      message.loading({ content: 'Generating PDF…', key: 'send' })
+      const pdfBase64 = await generatePdfBase64(inv).catch(() => undefined)
+      message.loading({ content: 'Sending email…', key: 'send' })
+      await send({ id, pdfBase64 })
+      message.success({ content: 'Invoice sent with PDF attachment', key: 'send' })
       onClose()
     } catch (e: any) {
-      message.error(e?.response?.data?.error || 'Failed to send invoice')
+      message.error({ content: e?.response?.data?.error || 'Failed to send invoice', key: 'send' })
     }
   }
 
@@ -99,6 +104,11 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
       footer={
         <Space>
           <Button onClick={onClose}>Close</Button>
+          {inv && (
+            <Button icon={<FilePdfOutlined />} onClick={() => printInvoice(inv)}>
+              Download PDF
+            </Button>
+          )}
           {inv?.status === 'DRAFT' && (
             <Button type="primary" icon={<SendOutlined />} loading={sending} onClick={handleSend}>
               Send to {customer.email || 'customer email'}
@@ -295,10 +305,14 @@ function InvoiceListTab() {
 
   async function handleSend(id: string) {
     try {
-      await send(id)
-      message.success('Invoice sent')
+      message.loading({ content: 'Generating PDF…', key: `send-${id}` })
+      const fullInv = await api.get(`/invoices/${id}`).then(r => r.data)
+      const pdfBase64 = await generatePdfBase64(fullInv).catch(() => undefined)
+      message.loading({ content: 'Sending email…', key: `send-${id}` })
+      await send({ id, pdfBase64 })
+      message.success({ content: 'Invoice sent with PDF attachment', key: `send-${id}` })
     } catch (e: any) {
-      message.error(e?.response?.data?.error || 'Failed to send')
+      message.error({ content: e?.response?.data?.error || 'Failed to send', key: `send-${id}` })
     }
   }
 
@@ -319,6 +333,7 @@ function InvoiceListTab() {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space size={4}>
           <Button size="small" icon={<EyeOutlined />} onClick={() => setViewId(r.id)}>View</Button>
+
           {r.status === 'DRAFT' && r.customer?.email && (
             <Button size="small" type="primary" icon={<SendOutlined />} loading={sending} onClick={() => handleSend(r.id)}>
               Send
@@ -392,9 +407,14 @@ function BulkSendTab() {
   async function sendSelected() {
     let ok = 0, fail = 0
     for (const id of selectedIds) {
-      try { await send(id); ok++ } catch { fail++ }
+      try {
+        const fullInv = await api.get(`/invoices/${id}`).then(r => r.data)
+        const pdfBase64 = await generatePdfBase64(fullInv).catch(() => undefined)
+        await send({ id, pdfBase64 })
+        ok++
+      } catch { fail++ }
     }
-    if (ok) message.success(`${ok} invoice(s) sent`)
+    if (ok) message.success(`${ok} invoice(s) sent with PDF`)
     if (fail) message.warning(`${fail} failed`)
     setSelectedIds([])
     qc.invalidateQueries({ queryKey: ['invoices'] })

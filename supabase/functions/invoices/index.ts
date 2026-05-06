@@ -97,6 +97,8 @@ Deno.serve(async (req) => {
   // POST /invoices/:id/send  - send invoice via Resend
   if (req.method === 'POST' && secondLast !== 'invoices' && last === 'send') {
     const id = secondLast
+    const { pdfBase64 } = await req.json().catch(() => ({}))
+
     const { data: inv } = await db.from('Invoice')
       .select('*, customer:Customer(id,name,email,gstNumber,billingAddress,billingVillage,billingDistrict,billingState,billingPincode), commodity:Commodity(id,name,hsnCode), items:InvoiceItem(*)')
       .eq('id', id).single()
@@ -105,21 +107,34 @@ Deno.serve(async (req) => {
     const toEmail = inv.customer?.email
     if (!toEmail) return error('Customer has no email address')
 
-    const html = buildInvoiceHtml(inv)
-
     const resendKey = Deno.env.get('RESEND_API_KEY')
     if (!resendKey) return error('RESEND_API_KEY not configured')
+
+    const invoiceDate = new Date(inv.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
+    const totalAmount = Number(inv.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const dueDate = new Date(new Date(inv.invoiceDate).getTime() + 7 * 86400000).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
+
+    const html = buildEmailHtml({ inv, invoiceDate, totalAmount, dueDate })
+
+    const payload: any = {
+      from: 'Akshaya Agri Solutions <onboarding@resend.dev>',
+      to: [toEmail],
+      reply_to: 'akshayaagrisolutions@gmail.com',
+      subject: `Invoice ${inv.invoiceNumber} from Akshaya Agri Solutions`,
+      html,
+    }
+
+    if (pdfBase64) {
+      payload.attachments = [{
+        filename: `${inv.invoiceNumber}.pdf`,
+        content: pdfBase64,
+      }]
+    }
 
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Akshaya Agri Solutions <onboarding@resend.dev>',
-        to: [toEmail],
-        reply_to: 'akshayaagrisolutions@gmail.com',
-        subject: `Invoice ${inv.invoiceNumber} – Akshaya Agri Solutions`,
-        html,
-      }),
+      body: JSON.stringify(payload),
     })
     if (!resp.ok) {
       const body = await resp.text()
@@ -165,81 +180,179 @@ Deno.serve(async (req) => {
   return error('Not found', 404)
 })
 
-function buildInvoiceHtml(inv: any): string {
+function buildEmailHtml({ inv, invoiceDate, totalAmount, dueDate }: { inv: any; invoiceDate: string; totalAmount: string; dueDate: string }): string {
   const customer = inv.customer ?? {}
-  const billingLines = [
-    customer.name,
-    customer.billingAddress,
-    [customer.billingVillage, customer.billingDistrict].filter(Boolean).join(', '),
-    [customer.billingState].filter(Boolean).join(', '),
-    customer.gstNumber ? `GSTIN: ${customer.gstNumber}` : '',
-  ].filter(Boolean).join('<br>')
+  const commodity = inv.commodity ?? {}
+  const customerName = customer.name ?? 'Valued Customer'
+  const billingAddr = [customer.billingAddress, customer.billingVillage, customer.billingDistrict, customer.billingState]
+    .filter(Boolean).join(', ')
 
-  const items = (inv.items ?? []).map((item: any) => `
-    <tr>
-      <td style="padding:6px 10px;border-bottom:1px solid #eee;">${item.lrNumber ?? '-'}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #eee;">${item.vehicleNumber ?? '-'}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;">${Number(item.weight).toLocaleString('en-IN', { maximumFractionDigits: 3 })} Qt</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;">₹${Number(item.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">₹${Number(item.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-    </tr>`).join('')
+  const itemRows = (inv.items ?? []).map((item: any, idx: number) => {
+    const weightMT = (Number(item.weight) / 10).toFixed(3)
+    const rateMT = (Number(item.saleRate) * 10).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+    const amount = Number(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;color:#555;">${idx + 1}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;">
+        <strong>${commodity.name ?? '-'}</strong>
+        ${item.lrNumber ? `<br><span style="font-size:11px;color:#888;">LR: ${item.lrNumber}${item.vehicleNumber ? ' &nbsp;|&nbsp; Vehicle: ' + item.vehicleNumber : ''}</span>` : ''}
+      </td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;text-align:center;color:#555;">${commodity.hsnCode ?? '-'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;text-align:right;color:#555;">${weightMT}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;text-align:right;color:#555;">₹${rateMT}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;text-align:right;font-weight:600;">₹${amount}</td>
+    </tr>`
+  }).join('')
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><style>
-  body{font-family:Arial,sans-serif;color:#222;margin:0;padding:0;background:#f5f5f5;}
-  .wrap{max-width:700px;margin:32px auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);padding:40px;}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;}
-  .company{font-size:20px;font-weight:700;color:#2e7d32;}
-  .inv-title{font-size:24px;font-weight:700;color:#1677ff;margin-bottom:4px;}
-  table{width:100%;border-collapse:collapse;}
-  th{background:#f0f7f0;padding:8px 10px;text-align:left;font-size:13px;color:#444;}
-  th:last-child,th:nth-child(3),th:nth-child(4){text-align:right;}
-  .total-row td{padding:10px;font-weight:700;font-size:15px;background:#f9f9f9;}
-  .footer{margin-top:32px;font-size:12px;color:#888;border-top:1px solid #eee;padding-top:16px;}
-</style></head>
-<body><div class="wrap">
-  <div class="header">
-    <div>
-      <div class="company">Akshaya Agri Solutions</div>
-      <div style="font-size:12px;color:#666;margin-top:4px;">Agricultural Commodity Trading</div>
-    </div>
-    <div style="text-align:right;">
-      <div class="inv-title">INVOICE</div>
-      <div style="font-size:14px;font-weight:600;">${inv.invoiceNumber}</div>
-      <div style="font-size:13px;color:#666;margin-top:4px;">Date: ${new Date(inv.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-    </div>
-  </div>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif;color:#222;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:32px 0;">
+<tr><td align="center">
+<table width="620" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);">
 
-  <div style="display:flex;justify-content:space-between;margin-bottom:28px;">
-    <div>
-      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Bill To</div>
-      <div style="font-size:14px;line-height:1.6;">${billingLines}</div>
-    </div>
-    <div style="text-align:right;">
-      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Commodity</div>
-      <div style="font-size:14px;font-weight:600;">${inv.commodity?.name ?? '-'}</div>
-      ${inv.commodity?.hsnCode ? `<div style="font-size:12px;color:#666;">HSN: ${inv.commodity.hsnCode}</div>` : ''}
-    </div>
-  </div>
+  <!-- Header -->
+  <tr>
+    <td style="background:#1a3a6b;padding:24px 32px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td>
+            <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:1px;">Akshaya Agri Solutions</div>
+            <div style="font-size:11px;color:#a8c4e0;margin-top:2px;">Agri Commodities. Seamless Supply. Global Reach.</div>
+          </td>
+          <td align="right">
+            <div style="font-size:20px;font-weight:700;color:#fff;">Tax Invoice</div>
+            <div style="font-size:13px;color:#a8c4e0;margin-top:2px;">${inv.invoiceNumber}</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
 
-  <table>
-    <thead><tr>
-      <th>Slip / LR No.</th><th>Vehicle</th><th>Weight (Qt)</th><th>Rate (₹/Qt)</th><th>Amount (₹)</th>
-    </tr></thead>
-    <tbody>${items}</tbody>
-    <tfoot>
-      <tr class="total-row">
-        <td colspan="2">Total</td>
-        <td style="text-align:right;">${Number(inv.totalWeight).toLocaleString('en-IN', { maximumFractionDigits: 3 })} Qt</td>
-        <td></td>
-        <td style="text-align:right;color:#1677ff;">₹${Number(inv.totalAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-      </tr>
-    </tfoot>
-  </table>
+  <!-- Greeting -->
+  <tr>
+    <td style="padding:28px 32px 0;">
+      <p style="margin:0 0 8px;font-size:15px;">Dear <strong>${customerName}</strong>,</p>
+      <p style="margin:0;font-size:13px;color:#555;line-height:1.6;">
+        Please find attached your invoice <strong>${inv.invoiceNumber}</strong> dated <strong>${invoiceDate}</strong> for the supply of <strong>${commodity.name ?? 'commodity'}</strong>.
+        The invoice is also summarised below for your reference.
+      </p>
+    </td>
+  </tr>
 
-  <div class="footer">
-    <p>This is a computer-generated invoice. For queries contact Akshaya Agri Solutions.</p>
-  </div>
-</div></body></html>`
+  <!-- Invoice Meta -->
+  <tr>
+    <td style="padding:20px 32px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f9fc;border-radius:6px;border:1px solid #e0e7ef;">
+        <tr>
+          <td style="padding:12px 16px;border-right:1px solid #e0e7ef;width:25%;">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Invoice No.</div>
+            <div style="font-size:13px;font-weight:700;color:#1a3a6b;">${inv.invoiceNumber}</div>
+          </td>
+          <td style="padding:12px 16px;border-right:1px solid #e0e7ef;width:25%;">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Invoice Date</div>
+            <div style="font-size:13px;font-weight:600;">${invoiceDate}</div>
+          </td>
+          <td style="padding:12px 16px;border-right:1px solid #e0e7ef;width:25%;">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Due Date</div>
+            <div style="font-size:13px;font-weight:600;color:#c0392b;">${dueDate}</div>
+          </td>
+          <td style="padding:12px 16px;width:25%;">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Amount Due</div>
+            <div style="font-size:14px;font-weight:700;color:#1a3a6b;">₹${totalAmount}</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Bill To -->
+  <tr>
+    <td style="padding:16px 32px 0;">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill To</div>
+      <div style="font-size:13px;font-weight:600;">${customerName}</div>
+      <div style="font-size:12px;color:#555;">${billingAddr || ''}</div>
+      ${customer.gstNumber ? `<div style="font-size:12px;color:#555;">GSTIN: ${customer.gstNumber}</div>` : ''}
+    </td>
+  </tr>
+
+  <!-- Items Table -->
+  <tr>
+    <td style="padding:20px 32px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;font-size:12px;">
+        <thead>
+          <tr style="background:#1a3a6b;color:#fff;">
+            <th style="padding:10px 12px;text-align:left;font-weight:600;width:30px;">No.</th>
+            <th style="padding:10px 12px;text-align:left;font-weight:600;">Item &amp; Description</th>
+            <th style="padding:10px 12px;text-align:center;font-weight:600;">HSN Code</th>
+            <th style="padding:10px 12px;text-align:right;font-weight:600;">Qty (MT)</th>
+            <th style="padding:10px 12px;text-align:right;font-weight:600;">Rate/MT</th>
+            <th style="padding:10px 12px;text-align:right;font-weight:600;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+        <tfoot>
+          <tr style="background:#1a3a6b;color:#fff;">
+            <td colspan="5" style="padding:10px 12px;font-weight:700;font-size:13px;">Net Payable</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;font-size:14px;">₹${totalAmount}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Bank Details -->
+  <tr>
+    <td style="padding:20px 32px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f9fc;border-radius:6px;border:1px solid #e0e7ef;font-size:12px;">
+        <tr>
+          <td style="padding:12px 16px;border-right:1px solid #e0e7ef;">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Bank Details</div>
+            <div><strong>Account Name:</strong> Akshaya Agri Solutions</div>
+            <div><strong>Account No:</strong> 758405002779</div>
+            <div><strong>IFSC Code:</strong> ICIC0007584</div>
+            <div><strong>Bank (Branch):</strong> ICICI (Addanki)</div>
+          </td>
+          <td style="padding:12px 16px;">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Payment Terms</div>
+            <div style="color:#555;">Payment due within <strong>7 days</strong> of invoice date.</div>
+            <div style="color:#555;margin-top:4px;">Please include the invoice number on your cheque or bank transfer.</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Closing Note -->
+  <tr>
+    <td style="padding:24px 32px;">
+      <p style="margin:0 0 8px;font-size:13px;color:#555;line-height:1.6;">
+        The PDF invoice is attached to this email for your records. If you have any questions or discrepancies, please do not hesitate to contact us.
+      </p>
+      <p style="margin:0;font-size:13px;color:#555;">
+        Thank you for your continued business with us.
+      </p>
+      <p style="margin:16px 0 0;font-size:13px;">
+        Warm regards,<br>
+        <strong>Akshaya Agri Solutions</strong><br>
+        <span style="color:#888;font-size:12px;">Phone: 9029376519 &nbsp;|&nbsp; akshayaagrisolutions@gmail.com</span>
+      </p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background:#1a3a6b;padding:14px 32px;text-align:center;">
+      <div style="font-size:11px;color:#a8c4e0;">
+        D. No 34-76, Srinagar Colony, Addanki, Prakasam Dt, Andhra Pradesh 523201
+      </div>
+      <div style="font-size:10px;color:#7a9cbe;margin-top:4px;">GSTIN: 37DZWPS2859P1ZU &nbsp;|&nbsp; PAN: DZWPS2859P</div>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`
 }
