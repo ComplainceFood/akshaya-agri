@@ -3,13 +3,24 @@ import {
   ArrowUpOutlined, CarOutlined, TeamOutlined, UserOutlined,
   RiseOutlined, FallOutlined, DollarOutlined, BarChartOutlined,
 } from '@ant-design/icons'
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
 import { useDashboard, usePurchaseOrders, useSalesOrders, useCommodities } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
 import { QT_TO_KG } from '../../utils/constants'
 import dayjs from 'dayjs'
 
 const fmtKg = (qt: number) => `${(qt * QT_TO_KG).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Kg`
+const fmtCr = (v: number) => {
+  if (Math.abs(v) >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`
+  if (Math.abs(v) >= 100000) return `₹${(v / 100000).toFixed(1)}L`
+  return `₹${(v / 1000).toFixed(0)}K`
+}
 const todayStr = dayjs().format('YYYY-MM-DD')
+
+const PIE_COLORS = ['#2e7d32', '#43a047', '#66bb6a', '#a5d6a7', '#1b5e20', '#81c784', '#388e3c', '#c8e6c9']
 
 function StatCard({ title, value, color, prefix, suffix, sub }: {
   title: string; value: string; color?: string
@@ -30,7 +41,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commodities: any[]; purchaseOrders: any[]; salesOrders: any[] }) {
   if (!commodities.length) return null
-
   const todayRates = commodities.map((c: any) => {
     const pr = purchaseOrders.find((p: any) => p.commodityId === c.id && p.rateDate?.split('T')[0] === todayStr)
     const sr = salesOrders.find((s: any) => s.commodityId === c.id && s.rateDate?.split('T')[0] === todayStr)
@@ -40,7 +50,7 @@ function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commoditi
   if (!todayRates.length) return (
     <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', border: '1px solid #ffe58f' }}>
       <Typography.Text type="warning" style={{ fontSize: 13 }}>
-        ⚠ No rate card set for today ({dayjs().format('DD MMM YYYY')}) - go to Purchase Rates / Sale Rates to add today's rates.
+        ⚠ No rate card set for today ({dayjs().format('DD MMM YYYY')}) — go to Purchase Rates / Sale Rates to add today's rates.
       </Typography.Text>
     </Card>
   )
@@ -73,6 +83,139 @@ function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commoditi
         </Col>
       ))}
     </Row>
+  )
+}
+
+// ── Monthly Trend Chart ──────────────────────────────────────────────────────
+function MonthlyTrendChart({ data }: { data: any[] }) {
+  const chartData = data.map(d => ({
+    month: dayjs(d.month + '-01').format('MMM YY'),
+    'Purchase': d.purchaseValue,
+    'Sale': d.saleValue,
+    'Margin': d.margin,
+  }))
+  return (
+    <Card size="small" title={<><RiseOutlined style={{ color: '#2e7d32', marginRight: 6 }} />6-Month Trend</>} style={{ height: '100%' }}>
+      <ResponsiveContainer width="100%" height={220}>
+        <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorSale" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#2e7d32" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#2e7d32" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorPurchase" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#1677ff" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorMargin" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#fa8c16" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="#fa8c16" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+          <YAxis tickFormatter={fmtCr} tick={{ fontSize: 10 }} width={48} />
+          <Tooltip formatter={(v: any, name: any) => [formatINR(Number(v ?? 0)), String(name ?? '')]} labelStyle={{ fontWeight: 600 }} />
+          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+          <Area type="monotone" dataKey="Purchase" stroke="#1677ff" strokeWidth={2} fill="url(#colorPurchase)" dot={false} />
+          <Area type="monotone" dataKey="Sale" stroke="#2e7d32" strokeWidth={2} fill="url(#colorSale)" dot={false} />
+          <Area type="monotone" dataKey="Margin" stroke="#fa8c16" strokeWidth={2} fill="url(#colorMargin)" dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+// ── Daily Volume Bar Chart ───────────────────────────────────────────────────
+function DailyVolumeChart({ data }: { data: any[] }) {
+  const chartData = data.map(d => ({
+    day: dayjs(d.date).format('DD MMM'),
+    'Sale Value': d.saleValue,
+    'Margin': d.margin,
+    positive: d.margin >= 0,
+  }))
+  return (
+    <Card size="small" title={<><BarChartOutlined style={{ color: '#1677ff', marginRight: 6 }} />Last 30 Days — Daily Sale & Margin</>} style={{ height: '100%' }}>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barGap={2}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+          <XAxis dataKey="day" tick={{ fontSize: 9 }} interval={4} />
+          <YAxis tickFormatter={fmtCr} tick={{ fontSize: 10 }} width={48} />
+          <Tooltip formatter={(v: any, name: any) => [formatINR(Number(v ?? 0)), String(name ?? '')]} labelStyle={{ fontWeight: 600 }} />
+          <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="Sale Value" fill="#a5d6a7" radius={[2, 2, 0, 0]} maxBarSize={18} />
+          <Bar dataKey="Margin" radius={[2, 2, 0, 0]} maxBarSize={18}>
+            {chartData.map((entry, i) => (
+              <Cell key={i} fill={entry.positive ? '#2e7d32' : '#cf1322'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+// ── Commodity Donut Chart ────────────────────────────────────────────────────
+function CommodityDonut({ data }: { data: any[] }) {
+  const top = data.slice(0, 7)
+  const othersValue = data.slice(7).reduce((s: number, d: any) => s + d.saleValue, 0)
+  const chartData = othersValue > 0 ? [...top, { name: 'Others', saleValue: othersValue }] : top
+
+  const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+    if (percent < 0.06) return null
+    const RADIAN = Math.PI / 180
+    const r = innerRadius + (outerRadius - innerRadius) * 0.5
+    const x = cx + r * Math.cos(-midAngle * RADIAN)
+    const y = cy + r * Math.sin(-midAngle * RADIAN)
+    return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={600}>{`${(percent * 100).toFixed(0)}%`}</text>
+  }
+
+  return (
+    <Card size="small" title={<><DollarOutlined style={{ color: '#fa8c16', marginRight: 6 }} />Commodity-wise Sale Value</>} style={{ height: '100%' }}>
+      <ResponsiveContainer width="100%" height={220}>
+        <PieChart>
+          <Pie data={chartData} dataKey="saleValue" nameKey="name" cx="45%" cy="50%"
+            innerRadius={55} outerRadius={90} labelLine={false} label={renderLabel}>
+            {chartData.map((_: any, i: number) => (
+              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v: any) => formatINR(Number(v ?? 0))} />
+          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} layout="vertical" align="right" verticalAlign="middle" />
+        </PieChart>
+      </ResponsiveContainer>
+    </Card>
+  )
+}
+
+// ── Payable vs Receivable Bar ────────────────────────────────────────────────
+function PayableReceivableBar({ payable, receivable }: { payable: number; receivable: number }) {
+  const max = Math.max(payable, receivable, 1)
+  return (
+    <Card size="small" title={<><TeamOutlined style={{ marginRight: 6 }} />Payable vs Receivable</>}>
+      <div style={{ padding: '8px 0' }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+            <span style={{ color: '#cf1322', fontWeight: 600 }}>Supplier Payable</span>
+            <span style={{ fontWeight: 700 }}>{formatINR(payable)}</span>
+          </div>
+          <Progress percent={Math.round((payable / max) * 100)} showInfo={false} strokeColor="#cf1322" trailColor="#fce4e4" size={['100%', 10]} />
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+            <span style={{ color: '#2e7d32', fontWeight: 600 }}>Customer Receivable</span>
+            <span style={{ fontWeight: 700 }}>{formatINR(receivable)}</span>
+          </div>
+          <Progress percent={Math.round((receivable / max) * 100)} showInfo={false} strokeColor="#2e7d32" trailColor="#e8f5e9" size={['100%', 10]} />
+        </div>
+        <div style={{ marginTop: 12, padding: '8px 12px', background: (receivable - payable) >= 0 ? '#f1f8f1' : '#fff3f3', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#666' }}>Net Position</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: (receivable - payable) >= 0 ? '#2e7d32' : '#cf1322' }}>
+            {formatINR(receivable - payable)}
+          </span>
+        </div>
+      </div>
+    </Card>
   )
 }
 
@@ -149,7 +292,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Today's Rate Card ── */}
-      <SectionLabel><BarChartOutlined /> Today's Rate Card - {dayjs().format('DD MMM YYYY')}</SectionLabel>
+      <SectionLabel><BarChartOutlined /> Today's Rate Card — {dayjs().format('DD MMM YYYY')}</SectionLabel>
       <TodayRateCard commodities={commodities} purchaseOrders={purchaseOrders} salesOrders={salesOrders} />
 
       {/* ── Today ── */}
@@ -199,6 +342,25 @@ export default function Dashboard() {
                 format={p => `${p}%`} style={{ marginTop: 4 }} />
             )}
           </Card>
+        </Col>
+      </Row>
+
+      {/* ── Charts Row ── */}
+      <SectionLabel><RiseOutlined /> Analytics</SectionLabel>
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+        <Col xs={24} lg={14}>
+          <MonthlyTrendChart data={data.monthlyTrend || []} />
+        </Col>
+        <Col xs={24} lg={10}>
+          <CommodityDonut data={data.commodityBreakdown || []} />
+        </Col>
+      </Row>
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+        <Col xs={24} lg={16}>
+          <DailyVolumeChart data={data.dailyTrend || []} />
+        </Col>
+        <Col xs={24} lg={8}>
+          <PayableReceivableBar payable={data.totalPayable} receivable={data.totalReceivable} />
         </Col>
       </Row>
 

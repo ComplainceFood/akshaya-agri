@@ -87,6 +87,58 @@ Deno.serve(async (req) => {
       .map(([id, v]) => ({ customerId: id, name: v.name, outstanding: v.totalSale - v.totalReceived, totalSale: v.totalSale }))
       .filter(c => c.outstanding > 0).sort((a, b) => b.outstanding - a.outstanding).slice(0, 5)
 
+    // ── Daily last 30 days ──────────────────────────────────────────────────
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+    const dailyMap: Record<string, { date: string; deliveries: number; purchaseValue: number; saleValue: number; margin: number }> = {}
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(); d.setDate(d.getDate() - (29 - i))
+      const key = d.toISOString().split('T')[0]
+      dailyMap[key] = { date: key, deliveries: 0, purchaseValue: 0, saleValue: 0, margin: 0 }
+    }
+    for (const d of (allDeliveries || [])) {
+      const key = d.deliveryDate?.split('T')[0]
+      if (key && dailyMap[key]) {
+        dailyMap[key].deliveries++
+        dailyMap[key].purchaseValue += Number(d.purchaseValue ?? 0)
+        dailyMap[key].saleValue += Number(d.saleValue ?? 0)
+        dailyMap[key].margin += Number(d.grossMargin ?? 0)
+      }
+    }
+    const dailyTrend = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date))
+
+    // ── Monthly last 6 months ───────────────────────────────────────────────
+    const monthlyMap: Record<string, { month: string; purchaseValue: number; saleValue: number; margin: number; deliveries: number }> = {}
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i)
+      const key = d.toISOString().slice(0, 7)
+      monthlyMap[key] = { month: key, purchaseValue: 0, saleValue: 0, margin: 0, deliveries: 0 }
+    }
+    for (const d of (allDeliveries || [])) {
+      const key = d.deliveryDate?.slice(0, 7)
+      if (key && monthlyMap[key]) {
+        monthlyMap[key].purchaseValue += Number(d.purchaseValue ?? 0)
+        monthlyMap[key].saleValue += Number(d.saleValue ?? 0)
+        monthlyMap[key].margin += Number(d.grossMargin ?? 0)
+        monthlyMap[key].deliveries++
+      }
+    }
+    const monthlyTrend = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month))
+
+    // ── Commodity breakdown ─────────────────────────────────────────────────
+    const { data: commDeliveries } = await db.from('Delivery')
+      .select('purchaseValue, saleValue, grossMargin, adjustedWeight, commodity:Commodity(id,name)')
+    const commMap: Record<string, any> = {}
+    for (const d of (commDeliveries || [])) {
+      const cid = (d.commodity as any)?.id ?? 'unknown'
+      const cname = (d.commodity as any)?.name ?? 'Unknown'
+      if (!commMap[cid]) commMap[cid] = { id: cid, name: cname, saleValue: 0, margin: 0, weight: 0 }
+      commMap[cid].saleValue += Number(d.saleValue ?? 0)
+      commMap[cid].margin += Number(d.grossMargin ?? 0)
+      commMap[cid].weight += Number(d.adjustedWeight ?? 0)
+    }
+    const commodityBreakdown = Object.values(commMap).sort((a: any, b: any) => b.saleValue - a.saleValue)
+
     return json({
       totalSuppliers, totalCustomers,
       recentDeliveries,
@@ -100,6 +152,7 @@ Deno.serve(async (req) => {
         purchaseValue: totalPurchaseValue, saleValue: totalSaleValue, margin: totalMargin,
       },
       topSupplierPayables, topCustomerReceivables,
+      dailyTrend, monthlyTrend, commodityBreakdown,
     })
   }
 
