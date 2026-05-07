@@ -62,9 +62,11 @@ function LedgerSummary({ type, id }: { type: 'supplier' | 'customer'; id: string
 
 function PaymentForm({ type, suppliers, customers }: { type: 'supplier' | 'customer'; suppliers: any[]; customers: any[] }) {
   const isSupplier = type === 'supplier'
-  // Show bank details when a supplier is selected
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null)
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const selectedSupplier = suppliers.find((s: any) => s.id === selectedSupplierId)
+  const { data: spLedger } = useSupplierLedger(selectedSupplierId ?? '')
+  const { data: crLedger } = useCustomerLedger(selectedCustomerId ?? '')
 
   return (
     <>
@@ -74,7 +76,7 @@ function PaymentForm({ type, suppliers, customers }: { type: 'supplier' | 'custo
             <Select
               showSearch optionFilterProp="label"
               options={(isSupplier ? suppliers : customers).map((s: any) => ({ value: s.id, label: s.name }))}
-              onChange={v => isSupplier && setSelectedSupplierId(v)}
+              onChange={v => { if (isSupplier) setSelectedSupplierId(v); else setSelectedCustomerId(v) }}
             />
           </Form.Item>
         </Col>
@@ -85,6 +87,20 @@ function PaymentForm({ type, suppliers, customers }: { type: 'supplier' | 'custo
         </Col>
       </Row>
 
+      {isSupplier && spLedger && (
+        <div style={{ background: spLedger.outstanding > 0 ? '#fff7f7' : '#f6fbf6', border: `1px solid ${spLedger.outstanding > 0 ? '#ffccc7' : '#c8e6c9'}`, borderRadius: 8, padding: '6px 12px', marginBottom: 10, fontSize: 12, display: 'flex', gap: 16 }}>
+          <span style={{ color: '#888' }}>Purchase: <b style={{ color: '#1a1a1a' }}>{formatINR(spLedger.totalPurchase)}</b></span>
+          <span style={{ color: '#888' }}>Paid: <b style={{ color: '#2e7d32' }}>{formatINR(spLedger.totalPaid)}</b></span>
+          <span style={{ color: '#888' }}>Outstanding: <b style={{ color: spLedger.outstanding > 0 ? '#cf1322' : '#2e7d32' }}>{formatINR(spLedger.outstanding)}</b></span>
+        </div>
+      )}
+      {!isSupplier && crLedger && (
+        <div style={{ background: crLedger.outstanding > 0 ? '#f6fbf6' : '#fff7f7', border: `1px solid ${crLedger.outstanding > 0 ? '#c8e6c9' : '#ffccc7'}`, borderRadius: 8, padding: '6px 12px', marginBottom: 10, fontSize: 12, display: 'flex', gap: 16 }}>
+          <span style={{ color: '#888' }}>Sale: <b style={{ color: '#1a1a1a' }}>{formatINR(crLedger.totalSale)}</b></span>
+          <span style={{ color: '#888' }}>Received: <b style={{ color: '#2e7d32' }}>{formatINR(crLedger.totalReceived)}</b></span>
+          <span style={{ color: '#888' }}>Outstanding: <b style={{ color: crLedger.outstanding > 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(crLedger.outstanding)}</b></span>
+        </div>
+      )}
       {isSupplier && selectedSupplier?.bankName && (
         <div style={{ background: '#f6fbf6', border: '1px solid #c8e6c9', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12 }}>
           <BankOutlined style={{ color: '#2e7d32', marginRight: 6 }} />

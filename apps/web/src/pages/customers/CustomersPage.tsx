@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, Popconfirm, message, Row, Col, Divider, Checkbox } from 'antd'
+import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, Typography, Popconfirm, message, Row, Col, Divider, Checkbox, Tag } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
-import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../../api/hooks'
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer, useCustomerReport } from '../../api/hooks'
 import { DEFAULT_STATE, DEFAULT_PAYMENT_TERMS_DAYS } from '../../utils/constants'
+import { formatINR } from '../../utils/format'
 
 const INDIA_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
@@ -21,6 +22,14 @@ export default function CustomersPage() {
   const [form] = Form.useForm()
 
   const { data: customers = [], isLoading } = useCustomers()
+  const { data: customerReport } = useCustomerReport()
+  const outstandingMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    if (Array.isArray(customerReport?.rows)) {
+      for (const row of customerReport.rows) map[row.customerId] = Number(row.outstanding ?? 0)
+    }
+    return map
+  }, [customerReport])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -55,6 +64,14 @@ export default function CustomersPage() {
     { title: 'GST Number', dataIndex: 'gstNumber', key: 'gst', render: (v: string) => v || '-' },
     { title: 'Bill To', key: 'billing', render: (_: any, r: any) => [r.billingVillage, r.billingDistrict, r.billingState].filter(Boolean).join(', ') || '-' },
     { title: 'Payment Terms', dataIndex: 'paymentTerms', key: 'pt', render: (v: number) => v ? `${v} days` : '-' },
+    {
+      title: 'Outstanding', key: 'outstanding', align: 'right' as const,
+      render: (_: any, r: any) => {
+        const amt = outstandingMap[r.id] ?? 0
+        if (amt === 0) return <Tag color="green">Settled</Tag>
+        return <span style={{ color: '#2e7d32', fontWeight: 600 }}>{formatINR(amt)}</span>
+      },
+    },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space>

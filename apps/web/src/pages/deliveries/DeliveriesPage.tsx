@@ -8,7 +8,7 @@ import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined
 import ImportWeighingReport from './ImportWeighingReport'
 import {
   useDeliveries, useCreateDelivery, useUpdateDelivery, useDeleteDelivery,
-  useSuppliers, useCustomers, useCommodities, useDailyRates, useDelivery
+  useSuppliers, useCustomers, useCommodities, useDailyRates, useDelivery, useInvoices
 } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
 import { MC_THRESHOLD_PCT, CESS_RATE, QT_TO_KG, KG_TO_QT } from '../../utils/constants'
@@ -149,6 +149,14 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
   const [rateCommodityId, setRateCommodityId] = useState<string | null>(null)
 
   const { data: deliveries = [], isLoading } = useDeliveries()
+  const { data: invoices = [] } = useInvoices()
+  const invoicedDeliveryIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const inv of invoices as any[]) {
+      for (const item of inv.items ?? []) if (item.deliveryId) ids.add(item.deliveryId)
+    }
+    return ids
+  }, [invoices])
   const { data: suppliers = [] } = useSuppliers()
   const { data: customers = [] } = useCustomers()
   const { data: commodities = [] } = useCommodities()
@@ -390,6 +398,12 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
         if (grossMargin == null) return <span style={{ color: '#ccc' }}>-</span>
         return <b style={{ color: grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{formatINR(grossMargin)}</b>
       }
+    },
+    {
+      title: 'Invoiced', key: 'invoiced', width: 85,
+      render: (_: any, raw: any) => invoicedDeliveryIds.has(raw.id)
+        ? <Tag color="blue">Invoiced</Tag>
+        : <span style={{ color: '#ccc', fontSize: 11 }}>-</span>,
     },
     {
       title: 'Actions', key: 'actions', width: 110, fixed: 'right' as const,

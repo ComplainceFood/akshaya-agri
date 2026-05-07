@@ -198,6 +198,16 @@ export const useCustomerReport = (params?: any) =>
 export const usePaymentsReport = (params?: any) =>
   useQuery({ queryKey: ['reports', 'payments', params], queryFn: () => api.get('/reports/payments', { params }).then(r => r.data) })
 
+// Invoices
+export const useInvoices = (params?: any) =>
+  useQuery({ queryKey: ['invoices', params], queryFn: () => api.get('/invoices', { params }).then(r => r.data) })
+export const useInvoice = (id: string) =>
+  useQuery({ queryKey: ['invoice', id], queryFn: () => api.get(`/invoices/${id}`).then(r => r.data), enabled: !!id })
+export const useDeleteInvoice = () => {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: (id: string) => api.delete(`/invoices/${id}`).then(r => r.data), onSuccess: () => qc.invalidateQueries({ queryKey: ['invoices'] }) })
+}
+
 // Users
 export const useUsers = () =>
   useQuery({ queryKey: ['users'], queryFn: () => api.get('/users').then(r => r.data) })

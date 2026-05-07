@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, message, Row, Col, Divider } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, Space, Typography, Popconfirm, message, Row, Col, Divider, Tag } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
-import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier } from '../../api/hooks'
+import { useSuppliers, useCreateSupplier, useUpdateSupplier, useDeleteSupplier, useSupplierReport } from '../../api/hooks'
 import { DEFAULT_STATE } from '../../utils/constants'
+import { formatINR } from '../../utils/format'
 
 const INDIA_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
@@ -20,6 +21,14 @@ export default function SuppliersPage() {
   const [form] = Form.useForm()
 
   const { data: suppliers = [], isLoading } = useSuppliers()
+  const { data: supplierReport } = useSupplierReport()
+  const outstandingMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    if (Array.isArray(supplierReport?.rows)) {
+      for (const row of supplierReport.rows) map[row.supplierId] = Number(row.outstanding ?? 0)
+    }
+    return map
+  }, [supplierReport])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -47,6 +56,14 @@ export default function SuppliersPage() {
     { title: 'Phone', dataIndex: 'phone', key: 'phone' },
     { title: 'Village / District', key: 'loc', render: (_: any, r: any) => [r.village, r.district].filter(Boolean).join(', ') || '-' },
     { title: 'Bank', dataIndex: 'bankName', key: 'bank', render: (v: string) => v || '-' },
+    {
+      title: 'Outstanding', key: 'outstanding', align: 'right' as const,
+      render: (_: any, r: any) => {
+        const amt = outstandingMap[r.id] ?? 0
+        if (amt === 0) return <Tag color="green">Settled</Tag>
+        return <span style={{ color: '#cf1322', fontWeight: 600 }}>{formatINR(amt)}</span>
+      },
+    },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space>
