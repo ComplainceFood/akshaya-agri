@@ -23,6 +23,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           token: {
             colorPrimary: '#2e7d32',
             colorLink: '#2e7d32',
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            borderRadius: 7,
+            fontSize: 13,
           },
         }}
       >

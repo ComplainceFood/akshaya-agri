@@ -1,8 +1,8 @@
 * { box-sizing: border-box; }
-body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f6fa; }
+body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f6fa; }
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
-.app-sider { background: linear-gradient(180deg, #1a2e1a 0%, #0f1f0f 100%) !important; }
+.app-sider { background: linear-gradient(180deg, #0f2027 0%, #0a1628 100%) !important; }
 .app-sider .ant-menu { background: transparent !important; border: none !important; }
 .app-sider .ant-menu-item {
   border-radius: 7px !important;
@@ -21,7 +21,42 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sa
   font-weight: 600 !important;
 }
 .app-sider .ant-menu-item .anticon { font-size: 15px !important; }
-.nav-section { padding: 14px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.3); }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: 38px;
+  margin: 1px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  color: rgba(255,255,255,0.58);
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.nav-item:hover { background: rgba(255,255,255,0.07) !important; color: rgba(255,255,255,0.9) !important; }
+.nav-item.active {
+  background: rgba(46,125,50,0.22) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 3px;
+  background: #4caf50;
+  border-radius: 0 3px 3px 0;
+}
+.nav-item .nav-icon { font-size: 15px; flex-shrink: 0; opacity: 0.65; transition: opacity 0.15s; }
+.nav-item.active .nav-icon { opacity: 1; color: #66bb6a; }
+.nav-section { padding: 14px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.25); }
 .ant-menu-item-divider { background: rgba(255,255,255,0.08) !important; margin: 6px 16px !important; }
 
 /* ── Layout ────────────────────────────────────────────────────────────────── */

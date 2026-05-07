@@ -56,12 +56,12 @@ export default function AppLayout() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={220} className="app-sider" style={{ position: 'fixed', height: '100vh', left: 0, zIndex: 100, overflowY: 'auto' }}>
         {/* Logo */}
-        <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #43a047, #2e7d32)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🌾</div>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg, #43a047, #1b5e20)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>🌾</div>
             <div>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Akshaya Agri</div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>Solutions</div>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: 13.5, lineHeight: 1.2, letterSpacing: 0.2, fontFamily: 'Inter, sans-serif' }}>Akshaya Agri</div>
+              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, letterSpacing: 0.3, fontFamily: 'Inter, sans-serif' }}>Solutions</div>
             </div>
           </div>
         </div>
@@ -78,20 +78,9 @@ export default function AppLayout() {
                 <div
                   key={item.key}
                   onClick={() => navigate(item.key)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '0 14px', height: 38, margin: '1px 10px',
-                    borderRadius: 7, cursor: 'pointer',
-                    background: isActive ? 'rgba(46,125,50,0.55)' : 'transparent',
-                    color: isActive ? '#fff' : 'rgba(255,255,255,0.62)',
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: 13,
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
-                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  className={`nav-item${isActive ? ' active' : ''}`}
                 >
-                  <span style={{ fontSize: 15, opacity: isActive ? 1 : 0.7 }}>{item.icon}</span>
+                  <span className="nav-icon">{item.icon}</span>
                   <span>{item.label}</span>
                 </div>
               )
@@ -100,7 +89,7 @@ export default function AppLayout() {
         ))}
 
         {/* Bottom user info */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.25)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Avatar size={28} style={{ background: '#2e7d32', fontSize: 12, flexShrink: 0 }}>
               {user?.name?.charAt(0)?.toUpperCase()}
