@@ -118,18 +118,20 @@ function PnLTab() {
 
   const marginPct = pnl?.totalSale > 0 ? (pnl.totalMargin / pnl.totalSale) * 100 : 0
 
+  const nowrap = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
+
   const columns = [
-    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 90, render: (v: string) => dayjs(v).format('DD/MM/YY') },
-    { title: 'LR / Slip', key: 'lr', width: 90, render: (_: any, r: any) => r.lrNumber || r.deliveryNumber },
-    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', ellipsis: true },
-    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', ellipsis: true },
-    { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity', ellipsis: true },
-    { title: 'Wt (Qt)', dataIndex: 'adjustedWeight', key: 'wt', width: 85, align: 'right' as const, render: formatQt },
-    { title: 'Buy ₹/Qt', dataIndex: 'purchaseRate', key: 'br', width: 80, align: 'right' as const, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
-    { title: 'Sell ₹/Qt', dataIndex: 'saleRate', key: 'sr', width: 80, align: 'right' as const, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
-    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', width: 110, align: 'right' as const, render: (v: number) => v ? formatINR(v) : '-' },
+    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 90, ...nowrap, render: (v: string) => dayjs(v).format('DD/MM/YY') },
+    { title: 'LR / Slip', key: 'lr', width: 90, ...nowrap, render: (_: any, r: any) => r.lrNumber || r.deliveryNumber },
+    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 150, ellipsis: true, ...nowrap },
+    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', width: 150, ellipsis: true, ...nowrap },
+    { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity', width: 120, ellipsis: true, ...nowrap },
+    { title: 'Wt (Qt)', dataIndex: 'adjustedWeight', key: 'wt', width: 85, align: 'right' as const, ...nowrap, render: formatQt },
+    { title: 'Buy ₹/Qt', dataIndex: 'purchaseRate', key: 'br', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
+    { title: 'Sell ₹/Qt', dataIndex: 'saleRate', key: 'sr', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
+    { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', width: 110, align: 'right' as const, ...nowrap, render: (v: number) => v ? formatINR(v) : '-' },
     {
-      title: 'Margin', dataIndex: 'grossMargin', key: 'margin', width: 110, align: 'right' as const,
+      title: 'Margin', dataIndex: 'grossMargin', key: 'margin', width: 110, align: 'right' as const, ...nowrap,
       render: (v: number) => v != null ? <span style={{ color: v >= 0 ? '#2e7d32' : '#cf1322', fontWeight: 600 }}>{formatINR(v)}</span> : '-'
     },
   ]
@@ -236,24 +238,26 @@ function SupplierTab() {
   const totalPurchase = rows.reduce((s, r) => s + r.totalPurchaseValue, 0)
   const totalPaid = rows.reduce((s, r) => s + r.totalPaid, 0)
 
+  const nw = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
+
   const summaryColumns = [
-    { title: 'Supplier', dataIndex: 'name', key: 'name', render: (v: string) => <b>{v}</b> },
-    { title: 'Deliveries', dataIndex: 'deliveryCount', key: 'dc', align: 'right' as const, width: 80 },
-    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, render: formatQt },
-    { title: 'Purchase Value', dataIndex: 'totalPurchaseValue', key: 'pv', align: 'right' as const, render: (v: number) => formatINR(v) },
-    { title: 'Net Payable', dataIndex: 'totalNetPayable', key: 'np', align: 'right' as const, render: (v: number) => formatINR(v) },
-    { title: 'Paid', dataIndex: 'totalPaid', key: 'pd', align: 'right' as const, render: (v: number) => <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> },
+    { title: 'Supplier', dataIndex: 'name', key: 'name', ...nw, render: (v: string) => <b>{v}</b> },
+    { title: 'Deliveries', dataIndex: 'deliveryCount', key: 'dc', align: 'right' as const, width: 80, ...nw },
+    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, ...nw, render: formatQt },
+    { title: 'Purchase Value', dataIndex: 'totalPurchaseValue', key: 'pv', align: 'right' as const, ...nw, render: (v: number) => formatINR(v) },
+    { title: 'Net Payable', dataIndex: 'totalNetPayable', key: 'np', align: 'right' as const, ...nw, render: (v: number) => formatINR(v) },
+    { title: 'Paid', dataIndex: 'totalPaid', key: 'pd', align: 'right' as const, ...nw, render: (v: number) => <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> },
     {
-      title: 'Outstanding', dataIndex: 'outstanding', key: 'os', align: 'right' as const,
+      title: 'Outstanding', dataIndex: 'outstanding', key: 'os', align: 'right' as const, ...nw,
       render: (v: number) => <b style={{ color: v > 0 ? '#cf1322' : '#2e7d32' }}>{formatINR(v)}</b>
     },
   ]
 
   const paymentColumns = [
-    { title: 'Receipt No.', dataIndex: 'paymentNumber', key: 'pn', width: 110 },
-    { title: 'Date', dataIndex: 'paymentDate', key: 'date', width: 90, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
-    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
+    { title: 'Receipt No.', dataIndex: 'paymentNumber', key: 'pn', width: 110, ...nw },
+    { title: 'Date', dataIndex: 'paymentDate', key: 'date', width: 90, ...nw, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', ...nw },
+    { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, ...nw, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
 
@@ -375,24 +379,26 @@ function CustomerTab() {
   const totalSale = rows.reduce((s, r) => s + r.totalSaleValue, 0)
   const totalReceived = rows.reduce((s, r) => s + r.totalReceived, 0)
 
+  const nw = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
+
   const summaryColumns = [
-    { title: 'Customer', dataIndex: 'name', key: 'name', render: (v: string) => <b>{v}</b> },
-    { title: 'Deliveries', dataIndex: 'deliveryCount', key: 'dc', align: 'right' as const, width: 80 },
-    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, render: formatQt },
-    { title: 'Sale Value', dataIndex: 'totalSaleValue', key: 'sv', align: 'right' as const, render: (v: number) => formatINR(v) },
-    { title: 'Margin', dataIndex: 'totalMargin', key: 'mg', align: 'right' as const, render: (v: number) => <span style={{ color: v >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(v)}</span> },
-    { title: 'Received', dataIndex: 'totalReceived', key: 'rc', align: 'right' as const, render: (v: number) => <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> },
+    { title: 'Customer', dataIndex: 'name', key: 'name', ...nw, render: (v: string) => <b>{v}</b> },
+    { title: 'Deliveries', dataIndex: 'deliveryCount', key: 'dc', align: 'right' as const, width: 80, ...nw },
+    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, ...nw, render: formatQt },
+    { title: 'Sale Value', dataIndex: 'totalSaleValue', key: 'sv', align: 'right' as const, ...nw, render: (v: number) => formatINR(v) },
+    { title: 'Margin', dataIndex: 'totalMargin', key: 'mg', align: 'right' as const, ...nw, render: (v: number) => <span style={{ color: v >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(v)}</span> },
+    { title: 'Received', dataIndex: 'totalReceived', key: 'rc', align: 'right' as const, ...nw, render: (v: number) => <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> },
     {
-      title: 'Outstanding', dataIndex: 'outstanding', key: 'os', align: 'right' as const,
+      title: 'Outstanding', dataIndex: 'outstanding', key: 'os', align: 'right' as const, ...nw,
       render: (v: number) => <b style={{ color: v > 0 ? '#cf1322' : '#2e7d32' }}>{formatINR(v)}</b>
     },
   ]
 
   const receiptColumns = [
-    { title: 'Receipt No.', dataIndex: 'receiptNumber', key: 'rn', width: 110 },
-    { title: 'Date', dataIndex: 'receiptDate', key: 'date', width: 90, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
-    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
+    { title: 'Receipt No.', dataIndex: 'receiptNumber', key: 'rn', width: 110, ...nw },
+    { title: 'Date', dataIndex: 'receiptDate', key: 'date', width: 90, ...nw, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', ...nw },
+    { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, ...nw, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
 
@@ -510,28 +516,30 @@ function PaymentsTab() {
   const receipts: any[] = data?.receipts || []
   const cashFlow: any[] = data?.dailyCashFlow || []
 
+  const nw = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
+
   const paymentColumns = [
-    { title: 'Payment No.', dataIndex: 'paymentNumber', key: 'pn', width: 110 },
-    { title: 'Date', dataIndex: 'paymentDate', key: 'date', width: 90, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
-    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, render: (v: number) => <b style={{ color: '#cf1322' }}>{formatINR(v)}</b> },
+    { title: 'Payment No.', dataIndex: 'paymentNumber', key: 'pn', width: 110, ...nw },
+    { title: 'Date', dataIndex: 'paymentDate', key: 'date', width: 90, ...nw, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', ...nw },
+    { title: 'Amount', dataIndex: 'amount', key: 'amt', width: 120, align: 'right' as const, ...nw, render: (v: number) => <b style={{ color: '#cf1322' }}>{formatINR(v)}</b> },
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
 
   const receiptColumns = [
-    { title: 'Receipt No.', dataIndex: 'receiptNumber', key: 'rn', width: 110 },
-    { title: 'Date', dataIndex: 'receiptDate', key: 'date', width: 90, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
-    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
+    { title: 'Receipt No.', dataIndex: 'receiptNumber', key: 'rn', width: 110, ...nw },
+    { title: 'Date', dataIndex: 'receiptDate', key: 'date', width: 90, ...nw, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', ...nw },
+    { title: 'Amount', dataIndex: 'amount', key: 'amt', width: 120, align: 'right' as const, ...nw, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
 
   const cashFlowColumns = [
-    { title: 'Date', dataIndex: 'date', key: 'date', render: (v: string) => dayjs(v).format('DD MMM YYYY') },
-    { title: 'Paid Out (Suppliers)', dataIndex: 'paid', key: 'paid', align: 'right' as const, render: (v: number) => v > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(v)}</span> : '-' },
-    { title: 'Received (Customers)', dataIndex: 'received', key: 'received', align: 'right' as const, render: (v: number) => v > 0 ? <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> : '-' },
+    { title: 'Date', dataIndex: 'date', key: 'date', width: 120, ...nw, render: (v: string) => dayjs(v).format('DD MMM YYYY') },
+    { title: 'Paid Out (Suppliers)', dataIndex: 'paid', key: 'paid', align: 'right' as const, ...nw, render: (v: number) => v > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(v)}</span> : '-' },
+    { title: 'Received (Customers)', dataIndex: 'received', key: 'received', align: 'right' as const, ...nw, render: (v: number) => v > 0 ? <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> : '-' },
     {
-      title: 'Net', key: 'net', align: 'right' as const,
+      title: 'Net', key: 'net', width: 120, align: 'right' as const, ...nw,
       render: (_: any, r: any) => {
         const net = r.received - r.paid
         return <b style={{ color: net >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(net)}</b>
