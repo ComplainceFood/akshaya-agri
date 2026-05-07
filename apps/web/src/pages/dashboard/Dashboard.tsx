@@ -272,23 +272,9 @@ export default function Dashboard() {
   return (
     <div>
       {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <Typography.Title level={4} style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Dashboard</Typography.Title>
-          <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{dayjs().format('dddd, DD MMMM YYYY')}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Card size="small" style={{ background: '#fff3f3', border: '1px solid #ffcdd2', borderRadius: 8 }}>
-            <Statistic title="Total Payable" value={formatINR(data.totalPayable)}
-              valueStyle={{ color: '#cf1322', fontSize: 15, fontWeight: 700 }}
-              prefix={<FallOutlined />} />
-          </Card>
-          <Card size="small" style={{ background: '#f1f8f1', border: '1px solid #c8e6c9', borderRadius: 8 }}>
-            <Statistic title="Total Receivable" value={formatINR(data.totalReceivable)}
-              valueStyle={{ color: '#2e7d32', fontSize: 15, fontWeight: 700 }}
-              prefix={<ArrowUpOutlined />} />
-          </Card>
-        </div>
+      <div style={{ marginBottom: 16 }}>
+        <Typography.Title level={4} style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Dashboard</Typography.Title>
+        <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{dayjs().format('dddd, DD MMMM YYYY')}</div>
       </div>
 
       {/* ── Today's Rate Card ── */}
@@ -361,28 +347,6 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} lg={8}>
           <PayableReceivableBar payable={data.totalPayable} receivable={data.totalReceivable} />
-        </Col>
-      </Row>
-
-      {/* ── Overall ── */}
-      <SectionLabel><BarChartOutlined /> All Time</SectionLabel>
-      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8} lg={4}>
-          <StatCard title="Total Deliveries" value={String(data.overall?.deliveryCount ?? 0)} prefix={<CarOutlined />} />
-        </Col>
-        <Col xs={12} sm={8} lg={5}>
-          <StatCard title="Total Weight" value={fmtKg(data.overall?.totalWeightQt ?? 0)} />
-        </Col>
-        <Col xs={12} sm={8} lg={5}>
-          <StatCard title="Total Purchase" value={formatINR(data.overall?.purchaseValue ?? 0)} />
-        </Col>
-        <Col xs={12} sm={8} lg={5}>
-          <StatCard title="Total Sale" value={formatINR(data.overall?.saleValue ?? 0)} color="#2e7d32" />
-        </Col>
-        <Col xs={12} sm={8} lg={5}>
-          <StatCard title="Total Margin" value={formatINR(data.overall?.margin ?? 0)}
-            color={(data.overall?.margin ?? 0) >= 0 ? '#2e7d32' : '#cf1322'}
-            prefix={(data.overall?.margin ?? 0) >= 0 ? <RiseOutlined /> : <FallOutlined />} />
         </Col>
       </Row>
 
