@@ -1,13 +1,14 @@
-import { Layout, Typography, Button, Avatar, Dropdown, Badge } from 'antd'
+import { Layout, Button, Avatar, Dropdown, Modal, Form, Input, message } from 'antd'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   DashboardOutlined, TeamOutlined, ShopOutlined,
   ShoppingCartOutlined, CarOutlined, DollarOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, TagsOutlined, FileTextOutlined,
-  BellOutlined,
+  LockOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../../store/auth'
 import { useDashboard } from '../../api/hooks'
+import { useState } from 'react'
 
 const { Header, Sider, Content } = Layout
 
@@ -41,16 +42,44 @@ const navSections: Section[] = [
 export default function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout } = useAuthStore()
+  const { user, logout, token } = useAuthStore()
   const { data: dashData } = useDashboard()
+  const [pwModal, setPwModal] = useState(false)
+  const [pwForm] = Form.useForm()
+  const [pwLoading, setPwLoading] = useState(false)
+
+  async function handleChangePassword(values: { newPassword: string }) {
+    setPwLoading(true)
+    try {
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+      const SERVICE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SERVICE_KEY,
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: values.newPassword }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      message.success('Password changed successfully')
+      setPwModal(false)
+      pwForm.resetFields()
+    } catch {
+      message.error('Failed to change password')
+    } finally {
+      setPwLoading(false)
+    }
+  }
 
   const userMenuItems = [
-    { key: 'profile', icon: <UserOutlined />, label: <span style={{ fontSize: 13 }}>{user?.email}</span>, disabled: true },
+    { key: 'email', icon: <UserOutlined />, label: <span style={{ fontSize: 13 }}>{user?.email}</span>, disabled: true },
+    { type: 'divider' as const },
+    { key: 'password', icon: <LockOutlined />, label: 'Change Password', onClick: () => setPwModal(true) },
     { type: 'divider' as const },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: () => { logout(); navigate('/login') } },
   ]
-
-  const untagged = 0 // could wire to delivery count later
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -89,17 +118,19 @@ export default function AppLayout() {
         ))}
 
         {/* Bottom user info */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.25)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Avatar size={28} style={{ background: '#2e7d32', fontSize: 12, flexShrink: 0 }}>
-              {user?.name?.charAt(0)?.toUpperCase()}
-            </Avatar>
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ color: '#fff', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name}</div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{user?.role}</div>
+        <Dropdown menu={{ items: userMenuItems }} placement="topLeft" trigger={['click']}>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.25)', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Avatar size={28} style={{ background: '#2e7d32', fontSize: 12, flexShrink: 0 }}>
+                {user?.name?.charAt(0)?.toUpperCase()}
+              </Avatar>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ color: '#fff', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name}</div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>{user?.role}</div>
+              </div>
             </div>
           </div>
-        </div>
+        </Dropdown>
       </Sider>
 
       <Layout style={{ marginLeft: 220 }}>
@@ -141,6 +172,26 @@ export default function AppLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      <Modal title="Change Password" open={pwModal} onCancel={() => { setPwModal(false); pwForm.resetFields() }}
+        onOk={() => pwForm.submit()} okText="Update Password" confirmLoading={pwLoading}>
+        <Form form={pwForm} layout="vertical" onFinish={handleChangePassword} style={{ marginTop: 16 }}>
+          <Form.Item name="newPassword" label="New Password"
+            rules={[{ required: true, min: 8, message: 'Minimum 8 characters' }]}>
+            <Input.Password placeholder="Enter new password" />
+          </Form.Item>
+          <Form.Item name="confirm" label="Confirm Password"
+            dependencies={['newPassword']}
+            rules={[{ required: true }, ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue('newPassword') === value) return Promise.resolve()
+                return Promise.reject('Passwords do not match')
+              }
+            })]}>
+            <Input.Password placeholder="Confirm new password" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   )
 }

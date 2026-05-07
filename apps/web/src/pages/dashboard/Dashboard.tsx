@@ -50,7 +50,7 @@ function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commoditi
   if (!todayRates.length) return (
     <Card size="small" style={{ marginBottom: 16, background: '#fffbe6', border: '1px solid #ffe58f' }}>
       <Typography.Text type="warning" style={{ fontSize: 13 }}>
-        ⚠ No rate card set for today ({dayjs().format('DD MMM YYYY')}) — go to Purchase Rates / Sale Rates to add today's rates.
+        ⚠ No rate card set for today ({dayjs().format('DD MMM YYYY')}) - go to Purchase Rates / Sale Rates to add today's rates.
       </Typography.Text>
     </Card>
   )
@@ -135,7 +135,7 @@ function DailyVolumeChart({ data }: { data: any[] }) {
     positive: d.margin >= 0,
   }))
   return (
-    <Card size="small" title={<><BarChartOutlined style={{ color: '#1677ff', marginRight: 6 }} />Last 30 Days — Daily Sale & Margin</>} style={{ height: '100%' }}>
+    <Card size="small" title={<><BarChartOutlined style={{ color: '#1677ff', marginRight: 6 }} />Last 30 Days - Daily Sale & Margin</>} style={{ height: '100%' }}>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barGap={2}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
@@ -278,7 +278,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Today's Rate Card ── */}
-      <SectionLabel><BarChartOutlined /> Today's Rate Card — {dayjs().format('DD MMM YYYY')}</SectionLabel>
+      <SectionLabel><BarChartOutlined /> Today's Rate Card - {dayjs().format('DD MMM YYYY')}</SectionLabel>
       <TodayRateCard commodities={commodities} purchaseOrders={purchaseOrders} salesOrders={salesOrders} />
 
       {/* ── Today ── */}
