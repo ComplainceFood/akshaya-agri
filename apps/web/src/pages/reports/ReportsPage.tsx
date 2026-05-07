@@ -68,7 +68,7 @@ function exportToPDF(title: string, subtitle: string, contentId: string) {
   <div class="pdf-subtitle">${subtitle}</div>
   ${content.innerHTML}
   <div class="pdf-footer">
-    <span>Akshaya Agri Solutions — Confidential</span>
+    <span>Akshaya Agri Solutions | Confidential</span>
     <span>Printed on ${dayjs().format('DD/MM/YYYY')}</span>
   </div>
 </body>
@@ -134,7 +134,7 @@ function PnLTab() {
     },
   ]
 
-  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} – ${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
+  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} to${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
 
   const pdfContent = () => {
     const rows = pnl?.deliveries || []
@@ -257,7 +257,7 @@ function SupplierTab() {
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
 
-  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} – ${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
+  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} to${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
   const filterLabel = supplierId ? (suppliers.find((s: any) => s.id === supplierId)?.name ?? '') : 'All Suppliers'
 
   const pdfContent = () => `
@@ -396,7 +396,7 @@ function CustomerTab() {
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
 
-  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} – ${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
+  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} to${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
   const filterLabel = customerId ? (customers.find((c: any) => c.id === customerId)?.name ?? '') : 'All Customers'
 
   const pdfContent = () => `
@@ -539,7 +539,7 @@ function PaymentsTab() {
     },
   ]
 
-  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} – ${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
+  const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} to${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
 
   const pdfContent = () => `
     <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
