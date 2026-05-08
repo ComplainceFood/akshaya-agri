@@ -4,6 +4,7 @@ import {
   DatePicker, Typography, message, Card, Statistic, Row, Col, Tag, Empty, Space,
 } from 'antd'
 import { PlusOutlined, ArrowDownOutlined, ArrowUpOutlined, BankOutlined } from '@ant-design/icons'
+import ImportBankStatement from './ImportBankStatement'
 import {
   useSupplierPayments, useCreateSupplierPayment, useSupplierLedger,
   useCustomerReceipts, useCreateCustomerReceipt, useCustomerLedger,
@@ -209,6 +210,7 @@ export default function PaymentsPage() {
                   <Button type="primary" icon={<PlusOutlined />} onClick={() => { spForm.resetFields(); setSupplierOpen(true) }}>
                     Record Payment
                   </Button>
+                  <ImportBankStatement onDone={() => {}} />
                 </div>
                 {selectedSupplier && <LedgerSummary type="supplier" id={selectedSupplier} />}
                 {spayments.length === 0 && !spLoading
