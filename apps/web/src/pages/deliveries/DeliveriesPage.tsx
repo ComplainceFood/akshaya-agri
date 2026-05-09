@@ -29,8 +29,11 @@ function calcDerived(r: any) {
   const mc = Number(r.moisturePct ?? 0)
   const mcDeduction = saleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
-  const balanceCess = saleValue != null
-    ? (r.cessApplicable ? saleValue * CESS_RATE - cessPaid : -cessPaid)
+  // Use cessRate (daily sale rate for that date) for cess; fall back to saleRate
+  const cessRateVal = r.cessRate ? Number(r.cessRate) : (r.saleRate ? Number(r.saleRate) : null)
+  const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
+  const balanceCess = cessBaseValue != null
+    ? (r.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
     : null
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction

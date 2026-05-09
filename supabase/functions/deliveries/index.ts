@@ -7,7 +7,7 @@ const CESS_RATE = 0.01
 
 function calcDelivery(data: {
   grossWeight?: number; tareWeight?: number
-  qualityDeductionPct?: number; purchaseRate?: number; saleRate?: number
+  qualityDeductionPct?: number; purchaseRate?: number; saleRate?: number; cessRate?: number
   moisturePct?: number; cessApplicable?: boolean; cessPaid?: number
 }) {
   const gross = Number(data.grossWeight ?? 0)
@@ -24,14 +24,27 @@ function calcDelivery(data: {
     ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue
     : 0
   const cessPaid = Number(data.cessPaid ?? 0)
-  const balanceCess = saleValue !== null
-    ? (data.cessApplicable ? saleValue * CESS_RATE - cessPaid : -cessPaid)
+  // Use cessRate (daily sale rate for that date) for cess calculation; fall back to saleRate
+  const cessRateVal = data.cessRate ? Number(data.cessRate) : (data.saleRate ? Number(data.saleRate) : null)
+  const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
+  const balanceCess = cessBaseValue !== null
+    ? (data.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
     : null
   const netPayable = purchaseValue !== null && balanceCess !== null
     ? purchaseValue - balanceCess - mcDeduction
     : null
 
-  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, netPayable }
+  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, netPayable, balanceCess }
+}
+
+async function fetchCessRate(db: any, deliveryDate: string | null | undefined, commodityId: string | null | undefined): Promise<number | null> {
+  if (!deliveryDate || !commodityId) return null
+  const { data } = await db.from('DailySaleRate')
+    .select('ratePerQuintal')
+    .eq('rateDate', deliveryDate)
+    .eq('commodityId', commodityId)
+    .maybeSingle()
+  return data?.ratePerQuintal ? Number(data.ratePerQuintal) : null
 }
 
 Deno.serve(async (req) => {
@@ -107,11 +120,12 @@ Deno.serve(async (req) => {
   // POST /deliveries
   if (req.method === 'POST') {
     const body = await req.json()
+    const cessRate = await fetchCessRate(db, body.deliveryDate, body.commodityId)
     const deliveryNumber = await getNextNumber(db, 'LR')
-    const calc = calcDelivery(body)
+    const calc = calcDelivery({ ...body, cessRate })
     const now = new Date().toISOString()
     const { data, error: dbErr } = await db.from('Delivery')
-      .insert({ ...body, id: crypto.randomUUID(), deliveryNumber, ...calc, createdAt: now, updatedAt: now })
+      .insert({ ...body, id: crypto.randomUUID(), deliveryNumber, ...calc, cessRate, createdAt: now, updatedAt: now })
       .select('*, supplier:Supplier(id,name), customer:Customer(id,name), commodity:Commodity(id,name)')
       .single()
     if (dbErr) return error(dbErr.message)
@@ -124,16 +138,18 @@ Deno.serve(async (req) => {
     const { data: existing } = await db.from('Delivery').select('*').eq('id', id).single()
     if (!existing) return error('Delivery not found', 404)
     const merged = { ...existing, ...body }
+    const cessRate = await fetchCessRate(db, merged.deliveryDate, merged.commodityId)
     const calc = calcDelivery({
       grossWeight: Number(merged.grossWeight), tareWeight: Number(merged.tareWeight),
       qualityDeductionPct: Number(merged.qualityDeductionPct ?? 0),
       purchaseRate: merged.purchaseRate ? Number(merged.purchaseRate) : undefined,
       saleRate: merged.saleRate ? Number(merged.saleRate) : undefined,
+      cessRate: cessRate ?? undefined,
       moisturePct: Number(merged.moisturePct ?? 0),
       cessApplicable: !!merged.cessApplicable,
       cessPaid: Number(merged.cessPaid ?? 0),
     })
-    const { data, error: dbErr } = await db.from('Delivery').update({ ...body, ...calc, updatedAt: new Date().toISOString() }).eq('id', id)
+    const { data, error: dbErr } = await db.from('Delivery').update({ ...body, ...calc, cessRate, updatedAt: new Date().toISOString() }).eq('id', id)
       .select('*, supplier:Supplier(id,name), customer:Customer(id,name), commodity:Commodity(id,name)')
       .single()
     if (dbErr) return error(dbErr.message)
