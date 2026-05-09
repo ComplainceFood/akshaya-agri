@@ -167,11 +167,81 @@ Deno.serve(async (req) => {
     return json(data)
   }
 
-  // DELETE /invoices/:id  (only DRAFT invoices)
+  // PUT /invoices/:id  - update header + replace items
+  if (req.method === 'PUT' && last !== 'invoices') {
+    const id = last
+    const { data: inv } = await db.from('Invoice').select('id').eq('id', id).single()
+    if (!inv) return error('Not found', 404)
+    const body = await req.json()
+    const { invoiceDate, customerId, commodityId, status, items } = body
+    // Recalculate totals from items
+    const totalWeight = (items ?? []).reduce((s: number, it: any) => s + Number(it.weight ?? 0), 0)
+    const totalAmount = (items ?? []).reduce((s: number, it: any) => s + Number(it.amount ?? 0), 0)
+    const { error: updErr } = await db.from('Invoice')
+      .update({ invoiceDate, customerId, commodityId, status, totalWeight, totalAmount, updatedAt: new Date().toISOString() })
+      .eq('id', id)
+    if (updErr) return error(updErr.message)
+    if (items) {
+      await db.from('InvoiceItem').delete().eq('invoiceId', id)
+      for (const it of items) {
+        await db.from('InvoiceItem').insert({
+          id: crypto.randomUUID(),
+          invoiceId: id,
+          deliveryId: it.deliveryId ?? null,
+          lrNumber: it.lrNumber ?? null,
+          vehicleNumber: it.vehicleNumber ?? null,
+          weight: Number(it.weight ?? 0),
+          saleRate: Number(it.saleRate ?? 0),
+          amount: Number(it.amount ?? 0),
+        })
+      }
+    }
+    const { data: updated } = await db.from('Invoice')
+      .select('*, customer:Customer(id,name,email,gstNumber,billingAddress,billingVillage,billingDistrict,billingState), commodity:Commodity(id,name,hsnCode), items:InvoiceItem(*)')
+      .eq('id', id).single()
+    return json(updated)
+  }
+
+  // POST /invoices/create  - manually create an invoice with items
+  if (req.method === 'POST' && last === 'create') {
+    const body = await req.json()
+    const { customerId, commodityId, invoiceDate, items = [] } = body
+    const totalWeight = items.reduce((s: number, it: any) => s + Number(it.weight ?? 0), 0)
+    const totalAmount = items.reduce((s: number, it: any) => s + Number(it.amount ?? 0), 0)
+    const invoiceNumber = await getNextNumber(db, 'INV')
+    const now = new Date().toISOString()
+    const { data: inv, error: invErr } = await db.from('Invoice').insert({
+      id: crypto.randomUUID(),
+      invoiceNumber,
+      customerId,
+      commodityId,
+      invoiceDate,
+      totalWeight,
+      totalAmount,
+      status: 'DRAFT',
+      createdAt: now,
+      updatedAt: now,
+    }).select().single()
+    if (invErr) return error(invErr.message)
+    for (const it of items) {
+      await db.from('InvoiceItem').insert({
+        id: crypto.randomUUID(),
+        invoiceId: inv.id,
+        deliveryId: it.deliveryId ?? null,
+        lrNumber: it.lrNumber ?? null,
+        vehicleNumber: it.vehicleNumber ?? null,
+        weight: Number(it.weight ?? 0),
+        saleRate: Number(it.saleRate ?? 0),
+        amount: Number(it.amount ?? 0),
+      })
+    }
+    return json(inv, 201)
+  }
+
+  // DELETE /invoices/:id
   if (req.method === 'DELETE' && last !== 'invoices') {
     const { data: inv } = await db.from('Invoice').select('status').eq('id', last).single()
     if (!inv) return error('Not found', 404)
-    if (inv.status !== 'DRAFT') return error('Only DRAFT invoices can be deleted')
     await db.from('InvoiceItem').delete().eq('invoiceId', last)
     await db.from('Invoice').delete().eq('id', last)
     return json({ success: true })

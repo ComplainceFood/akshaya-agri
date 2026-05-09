@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react'
 import {
   Typography, DatePicker, Button, Table, Space, Tag, Card, Row, Col,
   Statistic, Modal, Tabs, Select, message, Popconfirm, Tooltip, Alert, Badge,
+  Form, Input, InputNumber,
 } from 'antd'
 import {
   SendOutlined, FileDoneOutlined, EyeOutlined, DeleteOutlined,
   ThunderboltOutlined, CalendarOutlined, MailOutlined, FilePdfOutlined,
+  EditOutlined, PlusOutlined, MinusCircleOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../api/client'
@@ -59,6 +61,22 @@ function useDeleteInvoice() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api.delete(`/invoices/${id}`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invoices'] }),
+  })
+}
+
+function useUpdateInvoice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: any) => api.put(`/invoices/${id}`, body).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invoices'] }),
+  })
+}
+
+function useCreateInvoiceManual() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: any) => api.post('/invoices/create', body).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['invoices'] }),
   })
 }
@@ -156,6 +174,177 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
           />
         </div>
       )}
+    </Modal>
+  )
+}
+
+// ── Invoice Edit / Create Modal ───────────────────────────────────────────────
+function InvoiceEditModal({ invoice, onClose }: { invoice: any | null; onClose: () => void }) {
+  const [form] = Form.useForm()
+  const { data: customers = [] } = useCustomers()
+  const { data: commodities = [] } = useCommodities()
+  const { mutateAsync: update, isPending: updating } = useUpdateInvoice()
+  const { mutateAsync: create, isPending: creating } = useCreateInvoiceManual()
+  const isEdit = !!invoice
+
+  // Prefill form when editing
+  useState(() => {
+    if (invoice) {
+      form.setFieldsValue({
+        customerId: invoice.customerId,
+        commodityId: invoice.commodityId,
+        invoiceDate: dayjs(invoice.invoiceDate),
+        status: invoice.status,
+        items: (invoice.items ?? []).map((it: any) => ({
+          lrNumber: it.lrNumber,
+          vehicleNumber: it.vehicleNumber,
+          weight: it.weight,
+          saleRate: it.saleRate,
+          amount: it.amount,
+        })),
+      })
+    } else {
+      form.resetFields()
+      form.setFieldValue('items', [{}])
+    }
+  })
+
+  async function onSave() {
+    const values = await form.validateFields()
+    const payload = {
+      ...values,
+      invoiceDate: values.invoiceDate.format('YYYY-MM-DD'),
+      items: (values.items ?? []).map((it: any) => ({
+        lrNumber: it.lrNumber ?? null,
+        vehicleNumber: it.vehicleNumber ?? null,
+        weight: Number(it.weight ?? 0),
+        saleRate: Number(it.saleRate ?? 0),
+        amount: Number(it.amount ?? 0),
+      })),
+    }
+    try {
+      if (isEdit) {
+        await update({ id: invoice.id, ...payload })
+        message.success('Invoice updated')
+      } else {
+        await create(payload)
+        message.success('Invoice created')
+      }
+      onClose()
+    } catch (e: any) {
+      message.error(e?.response?.data?.error || 'Failed to save invoice')
+    }
+  }
+
+  return (
+    <Modal
+      title={isEdit ? `Edit Invoice ${invoice.invoiceNumber}` : 'New Invoice'}
+      open
+      onCancel={onClose}
+      onOk={onSave}
+      okText={isEdit ? 'Save Changes' : 'Create Invoice'}
+      confirmLoading={updating || creating}
+      width={760}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" size="small">
+        <Row gutter={12}>
+          <Col span={8}>
+            <Form.Item label="Date" name="invoiceDate" rules={[{ required: true }]}>
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item label="Customer" name="customerId" rules={[{ required: true }]}>
+              <Select showSearch optionFilterProp="label" options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item label="Commodity" name="commodityId">
+              <Select showSearch optionFilterProp="label" allowClear options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} />
+            </Form.Item>
+          </Col>
+        </Row>
+        {isEdit && (
+          <Form.Item label="Status" name="status">
+            <Select options={[{ value: 'DRAFT', label: 'Draft' }, { value: 'SENT', label: 'Sent' }, { value: 'PAID', label: 'Paid' }]} />
+          </Form.Item>
+        )}
+
+        <Typography.Text strong>Line Items</Typography.Text>
+        <Form.List name="items">
+          {(fields, { add, remove }) => (
+            <>
+              <Table
+                size="small"
+                pagination={false}
+                style={{ marginTop: 8 }}
+                dataSource={fields}
+                rowKey="key"
+                columns={[
+                  {
+                    title: 'Slip / LR No.', width: 110,
+                    render: (_, f) => <Form.Item name={[f.name, 'lrNumber']} style={{ margin: 0 }}><Input placeholder="LR No." /></Form.Item>
+                  },
+                  {
+                    title: 'Vehicle', width: 110,
+                    render: (_, f) => <Form.Item name={[f.name, 'vehicleNumber']} style={{ margin: 0 }}><Input placeholder="Vehicle" /></Form.Item>
+                  },
+                  {
+                    title: 'Weight (Qt)', width: 100,
+                    render: (_, f) => (
+                      <Form.Item name={[f.name, 'weight']} style={{ margin: 0 }} rules={[{ required: true, message: '' }]}>
+                        <InputNumber min={0} step={0.001} precision={3} style={{ width: '100%' }} placeholder="Qt"
+                          onChange={() => {
+                            const items = form.getFieldValue('items')
+                            const item = items[f.name]
+                            if (item?.weight && item?.saleRate) {
+                              items[f.name].amount = +(Number(item.weight) * Number(item.saleRate)).toFixed(2)
+                              form.setFieldValue('items', [...items])
+                            }
+                          }} />
+                      </Form.Item>
+                    )
+                  },
+                  {
+                    title: 'Rate (₹/Qt)', width: 110,
+                    render: (_, f) => (
+                      <Form.Item name={[f.name, 'saleRate']} style={{ margin: 0 }} rules={[{ required: true, message: '' }]}>
+                        <InputNumber min={0} step={0.5} precision={2} style={{ width: '100%' }} placeholder="Rate"
+                          onChange={() => {
+                            const items = form.getFieldValue('items')
+                            const item = items[f.name]
+                            if (item?.weight && item?.saleRate) {
+                              items[f.name].amount = +(Number(item.weight) * Number(item.saleRate)).toFixed(2)
+                              form.setFieldValue('items', [...items])
+                            }
+                          }} />
+                      </Form.Item>
+                    )
+                  },
+                  {
+                    title: 'Amount (₹)', width: 120,
+                    render: (_, f) => (
+                      <Form.Item name={[f.name, 'amount']} style={{ margin: 0 }} rules={[{ required: true, message: '' }]}>
+                        <InputNumber min={0} precision={2} style={{ width: '100%' }} placeholder="Amount" />
+                      </Form.Item>
+                    )
+                  },
+                  {
+                    title: '', width: 36,
+                    render: (_, f) => (
+                      <Button type="text" danger icon={<MinusCircleOutlined />} onClick={() => remove(f.name)} />
+                    )
+                  },
+                ]}
+              />
+              <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({})} style={{ marginTop: 8 }}>
+                Add Line Item
+              </Button>
+            </>
+          )}
+        </Form.List>
+      </Form>
     </Modal>
   )
 }
@@ -292,6 +481,9 @@ function InvoiceListTab() {
   const [filterCustomer, setFilterCustomer] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
   const [viewId, setViewId] = useState<string | null>(null)
+  const [editInvoice, setEditInvoice] = useState<any | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const { data: customers = [] } = useCustomers()
   const { mutateAsync: send, isPending: sending } = useSendInvoice()
   const { mutateAsync: remove } = useDeleteInvoice()
@@ -333,20 +525,22 @@ function InvoiceListTab() {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
         <Space size={4}>
           <Button size="small" icon={<EyeOutlined />} onClick={() => setViewId(r.id)}>View</Button>
-
-          {r.status === 'DRAFT' && r.customer?.email && (
+          <Button size="small" icon={<EditOutlined />} onClick={async () => {
+            const full = await api.get(`/invoices/${r.id}`).then(res => res.data)
+            setEditInvoice(full)
+            setEditOpen(true)
+          }}>Edit</Button>
+          {r.customer?.email && (
             <Button size="small" type="primary" icon={<SendOutlined />} loading={sending} onClick={() => handleSend(r.id)}>
               Send
             </Button>
           )}
-          {r.status === 'DRAFT' && !r.customer?.email && (
+          {!r.customer?.email && (
             <Tooltip title="Add customer email first"><Button size="small" icon={<SendOutlined />} disabled>Send</Button></Tooltip>
           )}
-          {r.status === 'DRAFT' && (
-            <Popconfirm title="Delete this draft invoice?" onConfirm={() => remove(r.id).then(() => message.success('Deleted'))}>
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-          )}
+          <Popconfirm title="Delete this invoice? This cannot be undone." onConfirm={() => remove(r.id).then(() => message.success('Deleted'))}>
+            <Button size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
         </Space>
       )
     },
@@ -358,15 +552,18 @@ function InvoiceListTab() {
 
   return (
     <div>
-      <Space wrap style={{ marginBottom: 12 }}>
-        <RangePicker format="DD/MM/YYYY" onChange={dates => setDateRange(dates as any)} placeholder={['From', 'To']} />
-        <Select placeholder="All Customers" allowClear showSearch optionFilterProp="label" style={{ width: 200 }}
-          options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
-          onChange={v => setFilterCustomer(v ?? null)} />
-        <Select placeholder="All Status" allowClear style={{ width: 140 }}
-          options={[{ value: 'DRAFT', label: 'Draft' }, { value: 'SENT', label: 'Sent' }, { value: 'PAID', label: 'Paid' }]}
-          onChange={v => setFilterStatus(v ?? null)} />
-      </Space>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <Space wrap>
+          <RangePicker format="DD/MM/YYYY" onChange={dates => setDateRange(dates as any)} placeholder={['From', 'To']} />
+          <Select placeholder="All Customers" allowClear showSearch optionFilterProp="label" style={{ width: 200 }}
+            options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+            onChange={v => setFilterCustomer(v ?? null)} />
+          <Select placeholder="All Status" allowClear style={{ width: 140 }}
+            options={[{ value: 'DRAFT', label: 'Draft' }, { value: 'SENT', label: 'Sent' }, { value: 'PAID', label: 'Paid' }]}
+            onChange={v => setFilterStatus(v ?? null)} />
+        </Space>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>New Invoice</Button>
+      </div>
 
       {totalOutstanding > 0 && (
         <Alert
@@ -386,6 +583,8 @@ function InvoiceListTab() {
       />
 
       {viewId && <InvoiceDetailModal id={viewId} onClose={() => setViewId(null)} />}
+      {editOpen && editInvoice && <InvoiceEditModal invoice={editInvoice} onClose={() => { setEditOpen(false); setEditInvoice(null) }} />}
+      {createOpen && <InvoiceEditModal invoice={null} onClose={() => setCreateOpen(false)} />}
     </div>
   )
 }
