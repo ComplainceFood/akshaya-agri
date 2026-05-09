@@ -538,8 +538,14 @@ function InvoiceListTab() {
           {!r.customer?.email && (
             <Tooltip title="Add customer email first"><Button size="small" icon={<SendOutlined />} disabled>Send</Button></Tooltip>
           )}
-          <Popconfirm title="Delete this invoice? This cannot be undone." onConfirm={() => remove(r.id).then(() => message.success('Deleted'))}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
+          <Popconfirm
+            title="Delete this invoice?"
+            description="This will permanently delete the invoice and all its line items."
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => remove(r.id).then(() => message.success('Invoice deleted')).catch((e: any) => message.error(e?.response?.data?.error || 'Failed to delete'))}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />}>Delete</Button>
           </Popconfirm>
         </Space>
       )
