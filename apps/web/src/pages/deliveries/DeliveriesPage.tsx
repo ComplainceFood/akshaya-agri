@@ -133,6 +133,7 @@ function InlineNum({ value, onSave, min = 0, step = 1, prefix, suffix, style, de
 function DeliverySheet({ commodityId, commodityName }: { commodityId: string | null; commodityName: string }) {
   const [open, setOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [importFormat, setImportFormat] = useState<'new' | 'old'>('new')
   const [viewId, setViewId] = useState<string | null>(null)
   const [editing, setEditing] = useState<any>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -437,7 +438,8 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
               <Button danger icon={<DeleteOutlined />}>Delete {selectedIds.length}</Button>
             </Popconfirm>
           )}
-          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>Import Weighing Report</Button>
+          <Button icon={<UploadOutlined />} onClick={() => { setImportFormat('new'); setImportOpen(true) }}>Import Weighing Report</Button>
+          <Button icon={<UploadOutlined />} onClick={() => { setImportFormat('old'); setImportOpen(true) }}>Import (Old Format)</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Record Delivery</Button>
         </Space>
       </div>
@@ -547,7 +549,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
       </Modal>
 
       {/* Import Modal */}
-      <ImportWeighingReport open={importOpen} onClose={() => setImportOpen(false)} onDone={() => setImportOpen(false)} />
+      <ImportWeighingReport open={importOpen} onClose={() => setImportOpen(false)} onDone={() => setImportOpen(false)} formatHint={importFormat} />
 
       {/* Add/Edit Modal */}
       <Modal title={editing ? 'Edit Delivery' : 'Record Delivery'} open={open} onOk={onSave} onCancel={() => setOpen(false)}

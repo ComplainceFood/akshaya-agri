@@ -2,13 +2,16 @@ import { corsResponse, json, error } from '../_shared/cors.ts'
 import { requireAuth } from '../_shared/auth.ts'
 
 // unpdf flattens this PDF into one continuous string (no line breaks between cells).
-// Each record's data appears BEFORE its challan number:
-//   "...1 1 21110 11940 917001-May-26 6:54 PM 02-May-26 9:51 AM AP07TF6826 ... INBOUND MAIZE2627000458 1 1 ..."
+// Each record's data appears BEFORE its challan number.
 //
-// Weights: Gross (standalone) + one more standalone + one glued-to-date
-// e.g. "21110 11940 917001-May-26" → 21110, 11940 standalone; 9170 glued before "01-May-26"
-// e.g. "14330 3750 1058002-May-26" → 14330, 3750 standalone; 10580 glued before "02-May-26"
-// Sorting all three: gross=max, net=mid, tare=min
+// Old format: weights packed tightly, one "glued" to the inDate
+//   e.g. "21110 11940 917001-May-26" → 21110, 11940 standalone; 9170 glued before "01-May-26"
+//
+// New format (from May 2026): additional Load Type / No of Bags / Amount columns;
+//   all three weights are space-separated standalones before inDate
+//   e.g. "36790 26070\n0\n460\n10720\n04-May-26" → 36790 gross, 26070 net, 10720 tare (all standalone)
+//
+// In both cases: sort collected weights → gross=max, net=mid, tare=min
 
 function parseRows(text: string): any[] {
   const rows: any[] = []
@@ -29,9 +32,30 @@ function parseRows(text: string): any[] {
     const segStart = s === 0 ? 0 : markers[s - 1].matchEnd
     const seg = text.slice(segStart, matchStart)
 
-    // Find last "1 1 " anchor to skip report header noise in segment 0
-    const anchor = seg.lastIndexOf(' 1 1 ')
-    const weightZone = anchor >= 0 ? seg.slice(anchor + 5) : seg
+    // Find the best anchor to skip report header noise before the weight data.
+    //
+    // New format: "INBOUND" appears BEFORE the weights and dates in the segment
+    //   (Transaction column is an early column in the new layout)
+    // Old format: "INBOUND" appears AFTER the weights/dates (between truck and product)
+    //   so we use the " 1 1 " anchor instead.
+    //
+    // Detect new format by checking if "INBOUND" precedes the first date in the segment.
+    const firstDateInSeg = seg.match(/\d{1,2}-[A-Za-z]{3}-\d{2,4}/)
+    const inboundIdx = seg.lastIndexOf('INBOUND ')
+    const firstDateIdx = firstDateInSeg ? seg.indexOf(firstDateInSeg[0]) : -1
+    const isNewFormat = inboundIdx >= 0 && (firstDateIdx < 0 || inboundIdx < firstDateIdx)
+
+    const oldAnchor = seg.lastIndexOf(' 1 1 ')
+    let weightZone: string
+    if (isNewFormat) {
+      // New format: weights and dates come after "INBOUND <consignor> <consignee>"
+      // Skip past INBOUND — the weights appear after the consignee name block
+      weightZone = seg.slice(inboundIdx + 8)
+    } else if (oldAnchor >= 0) {
+      weightZone = seg.slice(oldAnchor + 5)
+    } else {
+      weightZone = seg
+    }
 
     // Extract dates from weightZone
     const allDates = [...weightZone.matchAll(/(\d{1,2}-[A-Za-z]{3}-\d{2,4})/g)].map(x => x[1])
@@ -47,14 +71,15 @@ function parseRows(text: string): any[] {
     const vehicleNumber = truckMatch?.[1] || ''
 
     // Standalone weights: 4-6 digit numbers before inDate
-    const beforeInDate = inDate ? weightZone.slice(0, weightZone.indexOf(inDate)) : weightZone.slice(0, 40)
+    // In new format these include bags count (e.g. 460) and amount (e.g. 0) — filter by plausible
+    // weight range (>= 1000 kg) to exclude those small values
+    const beforeInDate = inDate ? weightZone.slice(0, weightZone.indexOf(inDate)) : weightZone.slice(0, 80)
     const standalones = [...beforeInDate.matchAll(/\b(\d{4,6})\b/g)]
       .map(x => parseInt(x[1]))
       .filter(n => n >= 1000 && n <= 99999)
 
-    // Glued weight: digits immediately before inDate in weightZone
+    // Glued weight (old format only): digits immediately before inDate
     // e.g. "11940 917001-May-26" → the chars right before "01-May-26" are "9170"
-    // We look for digits that end just where inDate begins
     let gluedWeight = 0
     if (inDate) {
       const idxDate = weightZone.indexOf(inDate)

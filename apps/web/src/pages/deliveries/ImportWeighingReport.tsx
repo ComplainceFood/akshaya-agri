@@ -73,9 +73,10 @@ interface Props {
   open: boolean
   onClose: () => void
   onDone: () => void
+  formatHint?: 'new' | 'old'
 }
 
-export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
+export default function ImportWeighingReport({ open, onClose, onDone, formatHint }: Props) {
   const [step, setStep] = useState(0)
   const [parsing, setParsing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -335,7 +336,7 @@ export default function ImportWeighingReport({ open, onClose, onDone }: Props) {
 
   return (
     <Modal
-      title="Import Sarvani Weighing Report"
+      title={`Import Sarvani Weighing Report${formatHint === 'old' ? ' (Old Format)' : formatHint === 'new' ? ' (New Format)' : ''}`}
       open={open}
       onCancel={() => { reset(); onClose() }}
       width={1400}
