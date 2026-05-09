@@ -78,13 +78,11 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Net Payable (G = D−E−F)" span={2}>
         <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '-'}</b>
       </Descriptions.Item>
-      {d.saleRate && <Descriptions.Item label="Sale Rate">₹{Number(d.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>}
-      {calc.saleValue != null && <Descriptions.Item label="Sale Value">{formatINR(calc.saleValue)}</Descriptions.Item>}
-      {calc.grossMargin != null && (
-        <Descriptions.Item label="Margin" span={2}>
-          <b style={{ color: calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{formatINR(calc.grossMargin)}</b>
-        </Descriptions.Item>
-      )}
+      <Descriptions.Item label="Sale Rate">₹{Number(d.saleRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>
+      <Descriptions.Item label="Sale Value">{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</Descriptions.Item>
+      <Descriptions.Item label="Margin" span={2}>
+        <b style={{ color: calc.grossMargin != null && calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{calc.grossMargin != null ? formatINR(calc.grossMargin) : '-'}</b>
+      </Descriptions.Item>
       {d.notes && <Descriptions.Item label="Notes" span={2}>{d.notes}</Descriptions.Item>}
     </Descriptions>
   )
@@ -213,12 +211,12 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     })
   }, [deliveries, filterSupplier, filterDateRange, filterSearch])
 
-  // Auto-fill rates when date+commodity are both set in the form — always overwrite from daily rates
+  // Auto-fill rates when daily rates are fetched for the current form date+commodity
   useEffect(() => {
     if (!open || !dailyRates) return
     if (dailyRates.purchaseRate != null) form.setFieldValue('purchaseRate', dailyRates.purchaseRate)
     if (dailyRates.saleRate != null) form.setFieldValue('saleRate', dailyRates.saleRate)
-  }, [dailyRates, open])
+  }, [dailyRates, open, rateDate, rateCommodityId])
 
   function onFormDateOrCommodityChange() {
     const vals = form.getFieldsValue(['deliveryDate', 'commodityId'])

@@ -5,7 +5,7 @@ import {
 } from 'antd'
 import { InboxOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import api from '../../api/client'
-import { useCreateDelivery, useSuppliers, usePurchaseOrders, useSalesOrders, useCustomers } from '../../api/hooks'
+import { useCreateDelivery, useSuppliers, usePurchaseOrders, useSalesOrders, useCustomers, useCommodities } from '../../api/hooks'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { MC_THRESHOLD_PCT, CESS_RATE } from '../../utils/constants'
@@ -37,6 +37,7 @@ interface ParsedRow {
   purchaseOrderId?: string
   customerId?: string
   salesOrderId?: string
+  commodityId?: string
   purchaseRate?: number   // ₹ per quintal
   saleRate?: number
   // cess
@@ -87,6 +88,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
   const { data: pos = [] } = usePurchaseOrders()
   const { data: sos = [] } = useSalesOrders()
   const { data: customers = [] } = useCustomers()
+  const { data: commodities = [] } = useCommodities()
   const { mutateAsync: createDelivery } = useCreateDelivery()
 
   function reset() {
@@ -140,6 +142,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       purchaseOrderId: vals.purchaseOrderId ?? r.purchaseOrderId,
       customerId: vals.customerId ?? r.customerId,
       salesOrderId: vals.salesOrderId ?? r.salesOrderId,
+      commodityId: vals.commodityId ?? r.commodityId,
       purchaseRate: vals.purchaseRate ?? r.purchaseRate,
       saleRate: vals.saleRate ?? r.saleRate,
       mcPct: vals.mcPct ?? r.mcPct,
@@ -169,6 +172,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
         purchaseOrderId: r.purchaseOrderId,
         customerId: r.customerId || null,
         salesOrderId: r.salesOrderId || null,
+        commodityId: r.commodityId || null,
         grossWeight: r.grossWeight,
         tareWeight: r.tareWeight,
         purchaseRate: r.purchaseRate,
@@ -248,6 +252,14 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
         <Select size="small" placeholder="Supplier" style={{ width: '100%' }} showSearch optionFilterProp="label"
           value={r.supplierId} onChange={v => upd(r.key, 'supplierId', v)}
           options={suppliers.map((s: any) => ({ value: s.id, label: s.name }))} allowClear />
+      )
+    },
+    {
+      title: 'Commodity', key: 'commodity', width: 150,
+      render: (_: any, r: ParsedRow) => (
+        <Select size="small" placeholder="Commodity" style={{ width: '100%' }} showSearch optionFilterProp="label"
+          value={r.commodityId} onChange={v => upd(r.key, 'commodityId', v)}
+          options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} allowClear />
       )
     },
     {
@@ -390,6 +402,10 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
               <Form.Item label="PO" name="purchaseOrderId" style={{ marginBottom: 6 }}>
                 <Select placeholder="PO" style={{ width: 140 }} showSearch optionFilterProp="label" allowClear
                   options={pos.map((p: any) => ({ value: p.id, label: p.poNumber }))} />
+              </Form.Item>
+              <Form.Item label="Commodity" name="commodityId" style={{ marginBottom: 6 }}>
+                <Select placeholder="Commodity" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
+                  options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} />
               </Form.Item>
               <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="e.g. 1847" min={0} step={0.5} style={{ width: 100 }} />
