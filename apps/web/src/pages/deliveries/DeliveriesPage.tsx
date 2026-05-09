@@ -43,8 +43,14 @@ function calcDerived(r: any) {
 
 function DeliveryDetail({ id }: { id: string }) {
   const { data: d } = useDelivery(id)
+  const { data: dailyRates } = useDailyRates(
+    d?.deliveryDate ?? null,
+    d?.commodityId ?? null,
+  )
   if (!d) return null
-  const calc = calcDerived(d)
+  // Always use the daily sale rate from the Sale Rates page; fall back to stored saleRate only if no daily rate exists
+  const liveSaleRate = dailyRates?.saleRate ?? (d.saleRate ? Number(d.saleRate) : null)
+  const calc = calcDerived({ ...d, saleRate: liveSaleRate, cessRate: liveSaleRate })
   return (
     <Descriptions bordered size="small" column={2}>
       <Descriptions.Item label="Slip No.">{d.lrNumber || '-'}</Descriptions.Item>
@@ -78,7 +84,10 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Net Payable (G = D−E−F)" span={2}>
         <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '-'}</b>
       </Descriptions.Item>
-      <Descriptions.Item label="Sale Rate">₹{Number(d.saleRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>
+      <Descriptions.Item label="Sale Rate">
+        {liveSaleRate != null ? `₹${Number(liveSaleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt` : '-'}
+        {dailyRates?.saleRate == null && d.saleRate && <span style={{ color: '#faad14', fontSize: 11, marginLeft: 6 }}>(no daily rate set)</span>}
+      </Descriptions.Item>
       <Descriptions.Item label="Sale Value">{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</Descriptions.Item>
       <Descriptions.Item label="Margin" span={2}>
         <b style={{ color: calc.grossMargin != null && calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{calc.grossMargin != null ? formatINR(calc.grossMargin) : '-'}</b>
