@@ -162,8 +162,12 @@ Deno.serve(async (req) => {
     if (roleCheck) return roleCheck
     const { data: allocs } = await db.from('SupplierPaymentAllocation').select('id').eq('deliveryId', id).limit(1)
     const { data: recAllocs } = await db.from('CustomerReceiptAllocation').select('id').eq('deliveryId', id).limit(1)
+    const { data: invoiceItems } = await db.from('InvoiceItem').select('id').eq('deliveryId', id).limit(1)
     if ((allocs && allocs.length > 0) || (recAllocs && recAllocs.length > 0)) {
       return error('Cannot delete a delivery that has payment allocations')
+    }
+    if (invoiceItems && invoiceItems.length > 0) {
+      return error('Cannot delete a delivery that has been invoiced. Delete the invoice first.')
     }
     await db.from('Delivery').delete().eq('id', id)
     return json({ success: true })

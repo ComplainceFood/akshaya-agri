@@ -29,9 +29,22 @@ Deno.serve(async (req) => {
     const { data: deliveries, error: dbErr } = await query
     if (dbErr) return error(dbErr.message)
 
+    // Exclude deliveries already linked to an existing invoice
+    const allIds = (deliveries || []).map((d: any) => d.id)
+    let alreadyInvoicedIds = new Set<string>()
+    if (allIds.length > 0) {
+      const { data: existingItems } = await db.from('InvoiceItem')
+        .select('deliveryId')
+        .in('deliveryId', allIds)
+      for (const item of (existingItems || [])) {
+        if (item.deliveryId) alreadyInvoicedIds.add(item.deliveryId)
+      }
+    }
+    const uninvoicedDeliveries = (deliveries || []).filter((d: any) => !alreadyInvoicedIds.has(d.id))
+
     // Group by customerId + deliveryDate + commodityId (same-day same-commodity = one invoice)
     const groups: Record<string, any> = {}
-    for (const d of (deliveries || [])) {
+    for (const d of uninvoicedDeliveries) {
       const dateStr = d.deliveryDate?.split('T')[0] ?? d.deliveryDate
       const key = `${d.customerId}||${dateStr}||${d.commodityId}`
       if (!groups[key]) {
