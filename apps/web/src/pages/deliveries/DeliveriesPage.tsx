@@ -213,12 +213,11 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     })
   }, [deliveries, filterSupplier, filterDateRange, filterSearch])
 
-  // Auto-fill rates when date+commodity are both set in the form
+  // Auto-fill rates when date+commodity are both set in the form — always overwrite from daily rates
   useEffect(() => {
     if (!open || !dailyRates) return
-    const cur = form.getFieldsValue(['purchaseRate', 'saleRate'])
-    if (dailyRates.purchaseRate != null && !cur.purchaseRate) form.setFieldValue('purchaseRate', dailyRates.purchaseRate)
-    if (dailyRates.saleRate != null && !cur.saleRate) form.setFieldValue('saleRate', dailyRates.saleRate)
+    if (dailyRates.purchaseRate != null) form.setFieldValue('purchaseRate', dailyRates.purchaseRate)
+    if (dailyRates.saleRate != null) form.setFieldValue('saleRate', dailyRates.saleRate)
   }, [dailyRates, open])
 
   function onFormDateOrCommodityChange() {
@@ -242,6 +241,8 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     const merged = row(r)
     setEditing(merged)
     form.setFieldsValue({ ...merged, deliveryDate: dayjs(merged.deliveryDate), grossWeight: qtToKg(merged.grossWeight), tareWeight: qtToKg(merged.tareWeight), cessApplicable: !!merged.cessApplicable })
+    setRateDate(merged.deliveryDate ? dayjs(merged.deliveryDate).format('YYYY-MM-DD') : null)
+    setRateCommodityId(merged.commodityId ?? null)
     setOpen(true)
   }
 
