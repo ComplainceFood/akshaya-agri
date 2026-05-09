@@ -2,57 +2,56 @@ import { corsResponse, json, error } from '../_shared/cors.ts'
 import { requireAuth } from '../_shared/auth.ts'
 
 // unpdf flattens this PDF into one continuous string (no line breaks between cells).
-// Each record's data appears BEFORE its challan number.
 //
-// Old format: weights packed tightly, one "glued" to the inDate
-//   e.g. "21110 11940 917001-May-26" → 21110, 11940 standalone; 9170 glued before "01-May-26"
+// Old format: data appears as  "...weights/dates... TRUCK CONSIGNEE CONSIGNOR INBOUND PRODUCT+ChallanNo ..."
+//   marker = PRODUCT immediately followed by 10-digit challan: "MAIZE2627000518"
 //
-// New format (from May 2026): additional Load Type / No of Bags / Amount columns;
-//   all three weights are space-separated standalones before inDate
-//   e.g. "36790 26070\n0\n460\n10720\n04-May-26" → 36790 gross, 26070 net, 10720 tare (all standalone)
+// New format: PDF column order changed → challan appears BEFORE INBOUND PRODUCT in the flat text:
+//   "...weights/dates... TRUCK CONSIGNEE CONSIGNOR ChallanNo INBOUND PRODUCT ..."
+//   marker = 10-digit challan followed (within ~20 chars) by " INBOUND PRODUCT"
 //
-// In both cases: sort collected weights → gross=max, net=mid, tare=min
+// In both formats one weight is "glued" to inDate, others are standalone before it.
+//   Old: "21110 11940 917001-May-26" → standalones 21110,11940; glued 9170
+//   New: "460 36790 10720 2607004-May-26" → standalones 36790,10720 (460=bags <1000, filtered); glued 26070
+// Sort collected weights → gross=max, net=mid, tare=min
 
 function parseRows(text: string): any[] {
   const rows: any[] = []
   const productList = 'MAIZE|HUSK|COAL|BIOMASS|RICE|WHEAT|PADDY|SOYBEAN|SUNFLOWER'
-  // Allow optional suffix after product name e.g. "MAIZE-BAGS", "MAIZE BAGS"
-  const recordRe = new RegExp(`(${productList})(?:[-\\s][A-Z]+)?(\\d{10})`, 'gi')
+  // Build unified markers for both formats.
+  // Old: PRODUCT(suffix?)CHALLAN  e.g. "MAIZE-BAGS2627000518"
+  // New: CHALLAN INBOUND PRODUCT  e.g. "2627000594 INBOUND MAIZE"
+  const oldRe = new RegExp(`(${productList})(?:[-\\s][A-Z]+)?(\\d{10})`, 'gi')
+  const newRe = /(\d{10})\s+INBOUND\s+(MAIZE|HUSK|COAL|BIOMASS|RICE|WHEAT|PADDY|SOYBEAN|SUNFLOWER)(?:[-\s][A-Z]+)?/gi
 
-  // Each PRODUCT+ChallanNo marks the END of that record's data in the flat text
   const markers: Array<{ matchStart: number; matchEnd: number; product: string; challanNo: string }> = []
+
   let m: RegExpExecArray | null
-  while ((m = recordRe.exec(text)) !== null) {
+  while ((m = oldRe.exec(text)) !== null) {
     markers.push({ matchStart: m.index, matchEnd: m.index + m[0].length, product: m[1].toUpperCase(), challanNo: m[2] })
   }
+  while ((m = newRe.exec(text)) !== null) {
+    markers.push({ matchStart: m.index, matchEnd: m.index + m[0].length, product: m[2].toUpperCase(), challanNo: m[1] })
+  }
+  // Sort by position in text and deduplicate overlapping matches (same challanNo)
+  markers.sort((a, b) => a.matchStart - b.matchStart)
+  const seen = new Set<string>()
+  const dedupedMarkers = markers.filter(mk => { if (seen.has(mk.challanNo)) return false; seen.add(mk.challanNo); return true })
 
-  for (let s = 0; s < markers.length; s++) {
-    const { product, challanNo, matchStart, matchEnd } = markers[s]
-    // Segment: from end of previous marker to start of current PRODUCT word
-    const segStart = s === 0 ? 0 : markers[s - 1].matchEnd
+  for (let s = 0; s < dedupedMarkers.length; s++) {
+    const { product, challanNo, matchStart } = dedupedMarkers[s]
+    // Segment: from end of previous marker to start of current marker
+    const segStart = s === 0 ? 0 : dedupedMarkers[s - 1].matchEnd
     const seg = text.slice(segStart, matchStart)
 
-    // Find the best anchor to skip report header noise before the weight data.
-    //
-    // New format: "INBOUND" appears BEFORE the weights and dates in the segment
-    //   (Transaction column is an early column in the new layout)
-    // Old format: "INBOUND" appears AFTER the weights/dates (between truck and product)
-    //   so we use the " 1 1 " anchor instead.
-    //
-    // Detect new format by checking if "INBOUND" precedes the first date in the segment.
-    const firstDateInSeg = seg.match(/\d{1,2}-[A-Za-z]{3}-\d{2,4}/)
-    const inboundIdx = seg.lastIndexOf('INBOUND ')
-    const firstDateIdx = firstDateInSeg ? seg.indexOf(firstDateInSeg[0]) : -1
-    const isNewFormat = inboundIdx >= 0 && (firstDateIdx < 0 || inboundIdx < firstDateIdx)
-
-    const oldAnchor = seg.lastIndexOf(' 1 1 ')
+    // Anchor to skip report header noise. Old format has " 1 1 ", new has " 1 " (extra columns).
+    const anchor11 = seg.lastIndexOf(' 1 1 ')
+    const anchor1 = seg.lastIndexOf(' 1 ')
     let weightZone: string
-    if (isNewFormat) {
-      // New format: weights and dates come after "INBOUND <consignor> <consignee>"
-      // Skip past INBOUND — the weights appear after the consignee name block
-      weightZone = seg.slice(inboundIdx + 8)
-    } else if (oldAnchor >= 0) {
-      weightZone = seg.slice(oldAnchor + 5)
+    if (anchor11 >= 0) {
+      weightZone = seg.slice(anchor11 + 5)
+    } else if (anchor1 >= 0) {
+      weightZone = seg.slice(anchor1 + 3)
     } else {
       weightZone = seg
     }
@@ -78,8 +77,8 @@ function parseRows(text: string): any[] {
       .map(x => parseInt(x[1]))
       .filter(n => n >= 1000 && n <= 99999)
 
-    // Glued weight (old format only): digits immediately before inDate
-    // e.g. "11940 917001-May-26" → the chars right before "01-May-26" are "9170"
+    // Glued weight: digits immediately before inDate (present in both formats)
+    // e.g. old "11940 917001-May-26" → glued 9170; new "10720 2607004-May-26" → glued 26070
     let gluedWeight = 0
     if (inDate) {
       const idxDate = weightZone.indexOf(inDate)
