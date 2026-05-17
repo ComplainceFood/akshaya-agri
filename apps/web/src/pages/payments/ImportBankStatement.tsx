@@ -45,128 +45,167 @@ async function parsePDF(file: File): Promise<BankRow[]> {
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
-  // Collect ALL text items across all pages with x,y coordinates
-  const items: { x: number; y: number; text: string; pageY: number }[] = []
-  let pageOffset = 0
+  // Collect items per page with x, y (top-origin), page number
+  const allItems: { x: number; y: number; pg: number; text: string }[] = []
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
     const viewport = page.getViewport({ scale: 1 })
     const content = await page.getTextContent()
     for (const item of content.items as any[]) {
-      if (!item.str?.trim()) continue
-      items.push({
+      const s = item.str
+      if (!s?.trim()) continue
+      allItems.push({
         x: Math.round(item.transform[4]),
-        y: Math.round(viewport.height - item.transform[5]),  // flip: 0=top
-        pageY: pageOffset + Math.round(viewport.height - item.transform[5]),
-        text: item.str.trim(),
+        y: Math.round(viewport.height - item.transform[5]),
+        pg: p,
+        text: s.trim(),
       })
     }
-    pageOffset += Math.round(viewport.height) + 20
   }
 
-  return parseItemsICICI(items)
+  return parseICICIStream(allItems)
 }
 
-// ── ICICI column layout parser ─────────────────────────────────────────────
-// ICICI statement columns (approximate X ranges in points at scale=1):
-//   SI No:        x ~30-60
-//   Tran Id:      x ~60-120
-//   Value Date:   x ~120-185
-//   Txn Date:     x ~185-255
-//   Posted Date:  x ~255-325
-//   Cheque/Ref:   x ~325-375
-//   Remarks:      x ~375-490
-//   Withdrawal:   x ~490-545
-//   Deposit:      x ~545-595
-//   Balance:      x ~595-650
-function parseItemsICICI(items: { x: number; y: number; pageY: number; text: string }[]): BankRow[] {
-  // Sort by pageY then x
-  items.sort((a, b) => a.pageY - b.pageY || a.x - b.x)
+// ── ICICI text-stream parser ───────────────────────────────────────────────
+// Strategy: sort by page then y then x, group into visual lines (y within 4px),
+// then scan for lines starting with an integer SI number.
+// Between consecutive SI-number lines we collect all tokens and extract
+// the fields using positional column X ranges detected from the header.
+function parseICICIStream(
+  allItems: { x: number; y: number; pg: number; text: string }[]
+): BankRow[] {
+  // Sort: page → y → x
+  allItems.sort((a, b) => a.pg - b.pg || a.y - b.y || a.x - b.x)
 
-  // Group items into rows by pageY proximity (within 6px = same row)
-  const rowGroups: typeof items[] = []
-  let currentGroup: typeof items = []
-  let lastY = -1
+  // Group into visual lines (items whose y is within 4px of first item in group)
+  type LineItem = { x: number; text: string }
+  type Line = { pg: number; y: number; items: LineItem[] }
+  const lines: Line[] = []
 
-  for (const item of items) {
-    if (lastY === -1 || Math.abs(item.pageY - lastY) <= 8) {
-      currentGroup.push(item)
+  for (const item of allItems) {
+    const last = lines[lines.length - 1]
+    if (last && last.pg === item.pg && Math.abs(item.y - last.y) <= 4) {
+      last.items.push({ x: item.x, text: item.text })
     } else {
-      if (currentGroup.length) rowGroups.push(currentGroup)
-      currentGroup = [item]
+      lines.push({ pg: item.pg, y: item.y, items: [{ x: item.x, text: item.text }] })
     }
-    lastY = item.pageY
   }
-  if (currentGroup.length) rowGroups.push(currentGroup)
 
-  // Detect the table header row to calibrate column X positions
-  // Look for a row containing "Tran" and "Date" and "Remarks"
+  // Detect column X positions from the header line
+  // The header contains "Sl" / "Tran" / "Value Date" / "Withdrawal" / "Deposit" / "Balance"
   let colX = {
-    siNo: 30, tranId: 65, valueDate: 120, txnDate: 180,
-    cheque: 310, remarks: 360, withdrawal: 475, deposit: 530, balance: 580,
+    siNo: 28, tranId: 58, valueDate: 110, txnDate: 168, postedDate: 228,
+    cheque: 290, remarks: 355, withdrawal: 460, deposit: 515, balance: 572,
   }
-
-  for (const group of rowGroups) {
-    const text = group.map(i => i.text).join(' ').toLowerCase()
-    if (text.includes('tran') && text.includes('remarks') && text.includes('withdrawal')) {
-      // Calibrate columns from header positions
-      const find = (kw: string) => group.find(i => i.text.toLowerCase().includes(kw))?.x ?? 0
+  for (const line of lines) {
+    const joined = line.items.map(i => i.text).join(' ').toLowerCase()
+    if (joined.includes('withdrawal') && joined.includes('deposit') && joined.includes('balance') && joined.includes('tran')) {
+      const find = (kw: string) => line.items.find(i => i.text.toLowerCase().includes(kw))?.x ?? 0
       colX = {
-        siNo:       find('sl') || find('si') || 30,
-        tranId:     find('tran') || 65,
-        valueDate:  find('value') || 120,
-        txnDate:    find('transaction d') || find('txn') || 180,
-        cheque:     find('cheque') || 310,
-        remarks:    find('remarks') || find('transaction r') || 360,
-        withdrawal: find('withdrawal') || find('withdra') || 475,
-        deposit:    find('deposit') || 530,
-        balance:    find('balance') || 580,
+        siNo:       find('sl') || find('si') || colX.siNo,
+        tranId:     find('tran id') || find('tran') || colX.tranId,
+        valueDate:  find('value') || colX.valueDate,
+        txnDate:    find('transaction d') || colX.txnDate,
+        postedDate: find('posted') || colX.postedDate,
+        cheque:     find('cheque') || colX.cheque,
+        remarks:    find('remarks') || find('transaction r') || colX.remarks,
+        withdrawal: find('withdrawal') || find('withdra') || colX.withdrawal,
+        deposit:    find('deposit') || colX.deposit,
+        balance:    find('balance') || colX.balance,
       }
       break
     }
   }
 
-  const amountRe = /^[\d,]+\.\d{2}$/
-  const dateRe = /^\d{2}[/-](?:\w{3}|\d{2})[/-]\d{4}$/
+  // Helper: collect text from a line's items within an X column range
+  function colText(items: LineItem[], xMin: number, xMax: number) {
+    return items.filter(i => i.x >= xMin && i.x < xMax).map(i => i.text).join(' ').trim()
+  }
 
-  // Helper: get text in x-column range from a row group
-  function col(group: typeof items, xMin: number, xMax: number) {
-    return group.filter(i => i.x >= xMin && i.x < xMax).map(i => i.text).join(' ').trim()
+  // Find indices of "transaction start" lines (SI number at leftmost column)
+  // SI number: 1-3 digit integer appearing at x near siNo column
+  const txnLineIdxs: number[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    // Must have an item in the SI No column range
+    const siItem = line.items.find(it => it.x >= colX.siNo - 8 && it.x < colX.tranId)
+    if (siItem && /^\d{1,4}$/.test(siItem.text)) {
+      txnLineIdxs.push(i)
+    }
   }
 
   const rows: BankRow[] = []
   let key = 0
 
-  // A transaction row starts with a SI number (1–3 digit number in the siNo column)
-  for (const group of rowGroups) {
-    const siText = col(group, colX.siNo - 5, colX.tranId - 5)
-    if (!siText || !/^\d{1,3}$/.test(siText.trim())) continue
+  for (let t = 0; t < txnLineIdxs.length; t++) {
+    const startIdx = txnLineIdxs[t]
+    const endIdx   = t + 1 < txnLineIdxs.length ? txnLineIdxs[t + 1] : lines.length
 
-    const remarksText = col(group, colX.remarks - 10, colX.withdrawal - 5)
-    const drText      = col(group, colX.withdrawal - 5, colX.deposit - 5)
-    const crText      = col(group, colX.deposit - 5, colX.balance - 5)
-    const balText     = col(group, colX.balance - 5, 700)
-    const txnDateText = col(group, colX.txnDate - 5, colX.cheque - 5)
-    const valDateText = col(group, colX.valueDate - 5, colX.txnDate - 5)
+    // Collect all items in this transaction's lines (may span 2-4 visual lines)
+    const txnLines = lines.slice(startIdx, endIdx)
 
-    const withdrawal = amountRe.test(drText.replace(/,/g, '').trim()) ? parseAmount(drText) : 0
-    const deposit    = amountRe.test(crText.replace(/,/g, '').trim()) ? parseAmount(crText) : 0
-    const balance    = parseAmount(balText)
+    // Accumulate text by column across all txn lines
+    let remarkParts: string[] = []
+    let drTokens: string[] = []
+    let crTokens: string[] = []
+    let balTokens: string[] = []
+    let dates: string[] = []
+    let tranIdParts: string[] = []
+    let chequeParts: string[] = []
+
+    for (const line of txnLines) {
+      const r = colText(line.items, colX.remarks - 8, colX.withdrawal - 4)
+      if (r) remarkParts.push(r)
+
+      const dr = colText(line.items, colX.withdrawal - 4, colX.deposit - 4)
+      if (dr) drTokens.push(dr)
+
+      const cr = colText(line.items, colX.deposit - 4, colX.balance - 4)
+      if (cr) crTokens.push(cr)
+
+      const bal = colText(line.items, colX.balance - 4, 700)
+      if (bal) balTokens.push(bal)
+
+      // Dates from valueDate and txnDate columns
+      const vd = colText(line.items, colX.valueDate - 4, colX.txnDate - 4)
+      if (vd && /\d/.test(vd)) dates.push(vd)
+      const td = colText(line.items, colX.txnDate - 4, colX.postedDate - 4)
+      if (td && /\d/.test(td)) dates.push(td)
+
+      const tid = colText(line.items, colX.tranId - 4, colX.valueDate - 4)
+      if (tid) tranIdParts.push(tid)
+
+      const chq = colText(line.items, colX.cheque - 4, colX.remarks - 4)
+      if (chq) chequeParts.push(chq)
+    }
+
+    // Reconstruct amounts: tokens like "1,26,335." + "50" → join and parse
+    const drStr  = joinAmountTokens(drTokens)
+    const crStr  = joinAmountTokens(crTokens)
+    const balStr = joinAmountTokens(balTokens)
+
+    const withdrawal = parseAmount(drStr)
+    const deposit    = parseAmount(crStr)
+    const balance    = parseAmount(balStr)
 
     if (!withdrawal && !deposit) continue
 
-    // Date: try txnDate column, fallback to valueDate column
-    const txnDate = parseDate(txnDateText.split(' ')[0]) || parseDate(valDateText.split(' ')[0])
+    const remarks = remarkParts.join(' ').replace(/\s+/g, ' ').trim()
 
-    const remarks = remarksText.replace(/\s+/g, ' ')
+    // Find a valid date
+    let txnDate = ''
+    for (const d of dates) {
+      const parsed = parseDate(d.split(' ')[0])
+      if (parsed) { txnDate = parsed; break }
+    }
 
     rows.push({
       _key: key++,
-      txnId: col(group, colX.tranId - 5, colX.valueDate - 5),
-      valueDate: parseDate(valDateText.split(' ')[0]),
+      txnId: tranIdParts.join('').trim(),
+      valueDate: txnDate,
       txnDate,
-      chequeRef: col(group, colX.cheque - 5, colX.remarks - 5),
+      chequeRef: chequeParts.join(' ').trim(),
       remarks,
       withdrawal,
       deposit,
@@ -180,6 +219,14 @@ function parseItemsICICI(items: { x: number; y: number; pageY: number; text: str
   }
 
   return rows
+}
+
+// Join amount tokens that may be split (e.g., "1,26,335." + "50" → "1,26,335.50")
+function joinAmountTokens(tokens: string[]): string {
+  if (!tokens.length) return ''
+  const joined = tokens.join('')
+  // Remove spaces inside the number
+  return joined.replace(/\s/g, '')
 }
 
 function parseAmount(s: string): number {
