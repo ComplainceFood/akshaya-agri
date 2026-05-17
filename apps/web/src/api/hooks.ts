@@ -198,6 +198,26 @@ export const useCustomerReport = (params?: any) =>
 export const usePaymentsReport = (params?: any) =>
   useQuery({ queryKey: ['reports', 'payments', params], queryFn: () => api.get('/reports/payments', { params }).then(r => r.data) })
 
+// Ledger
+export const useLedgerSummary = (params?: { from?: string; to?: string }) =>
+  useQuery({ queryKey: ['ledger', 'summary', params], queryFn: () => api.get('/ledger/summary', { params }).then(r => r.data), enabled: true })
+
+export const useCreateLedgerEntry = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: any) => api.post('/ledger/entries', data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ledger'] }),
+  })
+}
+
+export const useDeleteLedgerEntry = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/ledger/entries/${id}`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ledger'] }),
+  })
+}
+
 // Invoices
 export const useInvoices = (params?: any) =>
   useQuery({ queryKey: ['invoices', params], queryFn: () => api.get('/invoices', { params }).then(r => r.data) })

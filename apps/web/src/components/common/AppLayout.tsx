@@ -4,7 +4,7 @@ import {
   DashboardOutlined, TeamOutlined, ShopOutlined,
   ShoppingCartOutlined, CarOutlined, DollarOutlined, BarChartOutlined,
   UserOutlined, LogoutOutlined, TagsOutlined, FileTextOutlined,
-  LockOutlined,
+  LockOutlined, BookOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../../store/auth'
 import { useDashboard } from '../../api/hooks'
@@ -26,6 +26,7 @@ const navSections: Section[] = [
       { key: '/payments', icon: <DollarOutlined />, label: 'Payments' },
       { key: '/invoices', icon: <FileTextOutlined />, label: 'Invoices' },
       { key: '/reports', icon: <BarChartOutlined />, label: 'Reports' },
+      { key: '/ledger', icon: <BookOutlined />, label: 'Ledger' },
     ],
   },
   {
