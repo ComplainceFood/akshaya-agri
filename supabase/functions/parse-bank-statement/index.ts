@@ -30,21 +30,30 @@ function parseINR(s: string): number {
   return parseFloat(s.replace(/[^0-9.]/g, '')) || 0
 }
 
-// Find all amount-like tokens in a string and return them in order
-function findAmounts(text: string): number[] {
-  // PDF line-wrapping splits Indian amounts in two ways:
-  //   A) Decimal split:    "1,60,000. 00"   (dot + space + 2 digits)
-  //   B) Mid-digit split:  "1,60,00 00.00"  (last digit group wraps to next line)
-  //      Real value: 1,60,000.00 — the "0" before the dot landed on the next line
-  const normalized = text
-    // Fix A: glue "NNN. DD" → "NNN.DD"
-    .replace(/(\d)\.\s+(\d{2})\b/g, '$1.$2')
-    // Fix B: "digits/commas SPACE digits.dd" where first part ends mid-group
-    // e.g. "1,60,00 00.00" → "1,60,0000.00" then the regex below still parses it
-    // More precisely: a comma-number fragment followed by space + digits + ".dd"
-    .replace(/((?:\d{1,3},)+\d{0,3})\s+(\d{1,3}\.\d{2})\b/g, '$1$2')
+// Aggressively normalise split Indian amounts. PDF rendering breaks numbers in
+// many ways depending on column width and line wrapping. Apply multiple passes
+// from most-specific (least likely to cause false matches) to most-permissive.
+function normaliseAmounts(text: string): string {
+  let t = text
+  // Pass A: glue split around comma — "1,60, 000.00" or "1,60 ,000.00" → "1,60,000.00"
+  t = t.replace(/(\d),\s+(\d)/g, '$1,$2')
+  t = t.replace(/(\d)\s+,(\d)/g, '$1,$2')
+  // Pass B: glue decimal split — "1,60,000. 00" → "1,60,000.00"
+  t = t.replace(/(\d)\.\s+(\d{2})(?!\d)/g, '$1.$2')
+  // Pass C: glue mid-digit-group split — "1,60,00 00.00" → "1,60,0000.00"
+  // Pattern: digits/commas (no trailing dot), space, then digits + ".dd"
+  // The left side must contain a comma (otherwise it's just two unrelated numbers)
+  t = t.replace(/(\d{1,3}(?:,\d{1,3})+)\s+(\d{1,3}\.\d{2})(?!\d)/g, '$1$2')
+  return t
+}
 
-  const re = /\b\d{1,3}(?:,\d{2,3})*\d*\.\d{2}\b|\b\d+\.\d{2}\b/g
+// Find all amount-like tokens in a string and return them in order.
+// Accepts both Indian-grouped (1,23,456.78) and ungrouped (123456.78) numbers.
+function findAmounts(text: string): number[] {
+  const normalized = normaliseAmounts(text)
+  // Match: any digits-with-optional-commas followed by .dd
+  // The \d{1,3}(?:,?\d{2,3})* tolerates both with and without grouping
+  const re = /\d{1,3}(?:,?\d{2,3})*\.\d{2}/g
   const results: number[] = []
   let m: RegExpExecArray | null
   while ((m = re.exec(normalized)) !== null) {
@@ -152,18 +161,27 @@ function extractBeneficiary(remarks: string): { paidTo: string; accountRef: stri
 
 function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flatSample: string } {
   // Normalise: collapse whitespace sequences but keep newlines as spaces
-  const flat = text.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ')
+  let flat = text.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ')
 
-  // Find transaction boundaries: integer SI followed by S<digits> (possibly split by a space)
-  // and a value date DD/Mon/YY or DD/Mon/YYYY
-  // Value date may be split across PDF fragments: "01/May/2" + "026" → normalise first
-  const flatFixed = flat.replace(/(\d{2}\/[A-Za-z]{3,9}\/\d{1,3})\s+(\d{1,3})\b/g, (_, a, b) => {
-    // Only glue if combined year looks like 2-4 digits (e.g. "2"+"026" → "2026")
+  // Fix split dates: "01/May/2" + "026" → "01/May/2026"
+  flat = flat.replace(/(\d{2}\/[A-Za-z]{3,9}\/\d{1,3})\s+(\d{1,3})\b/g, (_, a, b) => {
     const combined = a + b
     if (/\/\d{2,4}$/.test(combined)) return combined
-    return _ // leave as-is
+    return _
   })
-  const boundaryRe = /\b(\d{1,3})\s+(S\d{3,}\s*\d*)\s+(\d{2}\/[A-Za-z]{3,9}\/\d{2,4})\s*/g
+
+  // Fix split SI numbers: "2 61 S0123456 01/May/2026" → "261 S0123456 ..."
+  // SI is followed by Tran ID (S+digits) so we can detect the split
+  flat = flat.replace(/\b(\d{1,3})\s+(\d{1,2})\s+(S\d{3,})/g, '$1$2 $3')
+
+  // Fix split Tran IDs: "S4987" + "083" → "S4987083"
+  flat = flat.replace(/\b(S\d{4,})\s+(\d{2,4})\b/g, '$1$2')
+
+  // Normalise amounts in the whole flat text up front (so block splitting respects glued numbers)
+  const flatFixed = normaliseAmounts(flat)
+
+  // Boundary: SI (1-4 digits) + Tran ID (S + 4+ digits) + value date
+  const boundaryRe = /\b(\d{1,4})\s+(S\d{4,})\s+(\d{2}\/[A-Za-z]{3,9}\/\d{2,4})/g
 
   const boundaries: Array<{
     si: number; tranId: string; dateStr: string; start: number; contentStart: number
@@ -173,12 +191,9 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
   let m: RegExpExecArray | null
   while ((m = boundaryRe.exec(flatFixed)) !== null) {
     const si = parseInt(m[1], 10)
-    // Accept: first transaction (si=1), next in sequence, or resuming after a
-    // small gap (page breaks can re-emit header rows that consume SI numbers)
-    // Also accept if si > lastSi to handle any numbering gap gracefully
-    // Accept ascending SI numbers; allow gaps up to 20 for page-break re-headers
-    // but reject large jumps that are likely false matches in account numbers etc.
-    if (si > lastSi) {
+    // Accept ascending SI numbers (allow any forward jump — false matches are rare
+    // because the SI+TranID+Date triple is very specific)
+    if (si > lastSi && si < 10000) {
       boundaries.push({
         si,
         tranId: m[2],
@@ -198,22 +213,25 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     // Block: from after the boundary match up to the next boundary start
     const block = flatFixed.slice(cur.contentStart, next ? next.start : flatFixed.length)
 
-    // Date: try to get the transaction date (second date in the block, DD/Mon/YYYY)
+    // Date: try to get the transaction date (first full-year date in the block)
     const allDates = [...block.matchAll(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g)]
     let txnDate = parseDate(cur.dateStr)
-    // First date in block is usually Transaction Date (full year)
     if (allDates.length > 0) {
       const d = parseDate(allDates[0][0])
       if (d) txnDate = d
     }
 
-    // Amounts: scan block for Indian-format numbers
+    // Amounts: every transaction row ends with two amounts (txn + balance, both .dd).
+    // If we find only 1, the row is incomplete — skip.
     const amounts = findAmounts(block)
-    if (amounts.length < 1) continue
+    if (amounts.length < 2) continue
 
-    // Last amount is balance. First is the transaction amount.
-    const txnAmount = amounts[0]
+    // Layout: ...remarks... <txnAmount> <balance>
+    // Take the LAST two amounts: balance is last, txn amount is second-last.
+    // (Earlier amounts inside the block are part of remarks: account numbers, refs, etc.
+    //  but those usually don't have .dd so they wouldn't match anyway.)
     const balance = amounts[amounts.length - 1]
+    const txnAmount = amounts[amounts.length - 2]
 
     // Remarks: the actual transaction description starts after the posted datetime
     // Block layout: [TxnDate DD/Mon/YYYY] [PostedDate DD-Mon-YYYY HH:MM:SS AM/PM] [ChequeRef] [Remarks...] [Amount] [Balance]
@@ -235,9 +253,9 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
         .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '')
         .replace(/\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
     }
-    // Strip trailing amounts and whitespace
+    // Strip trailing amounts (any digit.dd pattern) and whitespace
     remarks = remarks
-      .replace(/\b\d{1,3}(?:,\d{2,3})*\.\d{2}\b/g, '')
+      .replace(/\d{1,3}(?:,?\d{2,3})*\.\d{2}/g, '')
       .replace(/\s{2,}/g, ' ')
       .trim()
 
