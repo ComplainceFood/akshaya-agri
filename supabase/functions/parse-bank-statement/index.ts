@@ -193,97 +193,114 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
   // Normalise: collapse whitespace sequences but keep newlines as spaces
   let flat = text.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ')
 
-  // Fix split dates: "01/May/2" + "026" → "01/May/2026"
-  flat = flat.replace(/(\d{2}\/[A-Za-z]{3,9}\/\d{1,3})\s+(\d{1,3})\b/g, (_, a, b) => {
+  // ICICI's PDF wraps narrow columns. The SI/TranID/ValueDate/TxnDate columns
+  // are printed vertically next to each other, and unpdf serialises them
+  // top-to-bottom across the row, which interleaves fragments. Examples seen:
+  //
+  //   "1 S4987 01/Apr/20 01/Apr/2026 01-Apr-2026 09:46:39 AM ... 083 26"
+  //   "212 S6838 09/May/2 09/May/2026 09-May-2026 11:52:36 AM ... 7041 026"
+  //
+  // The fragments we need to re-glue (in order) are:
+  //   * TranID:   "S<4 digits>" + "<rest digits 2-4>"
+  //   * ValueDate: "DD/Mon/<short year>" + "<rest of year>"
+  //   * (TxnDate uses the same shape but is usually printed in full)
+  //
+  // We perform the gluing in two passes: first repair dates with short years,
+  // then merge orphan TranID-tail digits that appear right after the posted
+  // datetime block.
+
+  // Pass 1: glue split short-year date "01/May/2" + "026" → "01/May/2026"
+  flat = flat.replace(/(\d{2}\/[A-Za-z]{3,9}\/\d{1,3})\s+(\d{1,3})(?=\D)/g, (m, a, b) => {
     const combined = a + b
-    if (/\/\d{2,4}$/.test(combined)) return combined
-    return _
+    return /\/\d{4}$/.test(combined) ? combined : m
   })
 
-  // Fix split SI numbers: "2 61 S0123456 01/May/2026" → "261 S0123456 ..."
-  flat = flat.replace(/\b(\d{1,3})\s+(\d{1,2})\s+(S\d{3,})/g, '$1$2 $3')
-
-  // Fix split Tran IDs: "S4987" + "083" → "S4987083"
-  flat = flat.replace(/\b(S\d{4,})\s+(\d{2,4})\b/g, '$1$2')
+  // Pass 2: glue split posted datetime "01-Apr-202" + "6 09:46:39 AM" → "01-Apr-2026 09:46:39 AM"
+  flat = flat.replace(/(\d{2}-[A-Za-z]{3,9}-\d{1,3})\s+(\d{1,3})\s+(\d{2}:\d{2}:\d{2}\s*[AP]M)/g,
+    (m, a, b, t) => /\d{4}$/.test(a + b) ? `${a}${b} ${t}` : m)
 
   // Normalise split amounts up front
   const flatFixed = normaliseAmounts(flat)
 
   // ── Strategy: anchor on POSTED DATETIME (DD-Mon-YYYY HH:MM:SS AM/PM) ──
-  // This appears exactly once per transaction and is highly stable.
-  // For each posted-datetime position, the transaction's amounts (txn + balance)
-  // are the LAST 2 numbers that appear BEFORE the NEXT posted-datetime (or end of text).
-  //
-  // We also need the SI/TranID/ValueDate (which appear BEFORE the posted-datetime
-  // for the same row) to identify the transaction.
+  // It appears exactly once per transaction and is the most stable token in
+  // the row. From each posted-datetime position we walk BACKWARDS to find
+  // the SI / TranID / ValueDate (which may be in fragments), and walk
+  // FORWARDS to the next posted-datetime to find the row's remarks + amounts.
 
-  const postedDtRe = /\d{2}-[A-Za-z]{3,9}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi
-  const postedPositions: Array<{ index: number; length: number; text: string }> = []
+  const postedDtRe = /(\d{2})-([A-Za-z]{3,9})-(\d{4})\s+(\d{2}:\d{2}:\d{2}\s*[AP]M)/gi
+  const posted: Array<{ index: number; length: number; isoDate: string }> = []
   let pm: RegExpExecArray | null
   while ((pm = postedDtRe.exec(flatFixed)) !== null) {
-    postedPositions.push({ index: pm.index, length: pm[0].length, text: pm[0] })
-  }
-
-  // SI + TranID + ValueDate boundary regex (used to identify each row's header)
-  const headerRe = /\b(\d{1,4})\s+(S\d{4,})\s+(\d{2}\/[A-Za-z]{3,9}\/\d{2,4})/g
-
-  // Build list of all headers
-  const headers: Array<{ si: number; tranId: string; dateStr: string; index: number; endIndex: number }> = []
-  let hm: RegExpExecArray | null
-  while ((hm = headerRe.exec(flatFixed)) !== null) {
-    headers.push({
-      si: parseInt(hm[1], 10),
-      tranId: hm[2],
-      dateStr: hm[3],
-      index: hm.index,
-      endIndex: hm.index + hm[0].length,
+    const mon = MONTHS[pm[2]] || MONTHS[pm[2].slice(0, 3)] || '01'
+    posted.push({
+      index: pm.index,
+      length: pm[0].length,
+      isoDate: `${pm[3]}-${mon}-${pm[1]}`,
     })
   }
 
-  // Filter headers: keep only those with ascending SI (skip header re-prints on page breaks)
-  const validHeaders: typeof headers = []
-  let lastSi = 0
-  for (const h of headers) {
-    if (h.si > lastSi && h.si < 10000) { validHeaders.push(h); lastSi = h.si }
-  }
+  // ── Anchor on each posted datetime directly ──
+  // Build one row per posted-datetime. The row's content is the slice
+  // [thisPosted.end, nextPosted.start). We find the header (SI + TranID)
+  // by scanning BACKWARDS from the posted datetime — the closest preceding
+  // "<si> S<digits>" pair is this row's. Tail digits that belong to the
+  // TranID/year are stitched on by gluing fragments.
 
   const rows: TxnRow[] = []
+  const seenTranIds = new Set<string>()
+  // Strict S-id regex: at least 3 digits, optionally followed by a tail fragment
+  const sIdNear = /(\d{1,4})\s+(S\d{3,})(?:\s+(\d{1,5}))?/g
 
-  for (let i = 0; i < validHeaders.length; i++) {
-    const cur = validHeaders[i]
-    const next = validHeaders[i + 1]
+  for (let i = 0; i < posted.length; i++) {
+    const cur = posted[i]
+    const next = posted[i + 1]
 
-    // The row's content ends at the START of the next header (or end of text)
-    const rowEnd = next ? next.index : flatFixed.length
-    // The row's content starts right after THIS row's header
-    const rowStart = cur.endIndex
+    // Search window for THIS row's header: from previous posted dt end up to
+    // this posted dt. We deliberately do NOT clamp to the previous row's
+    // tail because PDF fragmentation can place the header earlier.
+    const headerWindowStart = i > 0 ? posted[i - 1].index + posted[i - 1].length : 0
+    const headerWindow = flatFixed.slice(headerWindowStart, cur.index)
 
-    // Slice the full row (header end → next header start)
-    const block = flatFixed.slice(rowStart, rowEnd)
+    // POST-block: text after this posted dt, up to next posted dt (or end).
+    // Contains remarks + amounts + (possibly) next row's header fragments.
+    const postEnd = next ? next.index : flatFixed.length
+    const postBlock = flatFixed.slice(cur.index + cur.length, postEnd)
 
-    // Find the posted datetime within this block (skip if multiple, take first)
-    const postedInBlock = postedPositions.find(p => p.index >= rowStart && p.index < rowEnd)
-    // Everything after the posted datetime is: ChequeRef + Remarks + TxnAmount + Balance
-    const tail = postedInBlock
-      ? flatFixed.slice(postedInBlock.index + postedInBlock.length, rowEnd)
-      : block
+    // Find ALL <digits> S<digits> [tail] candidates in the header window.
+    // Take the LAST one — that's the closest to this posted datetime.
+    const cands: Array<{ si: number; tranId: string; idx: number; matchLen: number }> = []
+    let cm: RegExpExecArray | null
+    sIdNear.lastIndex = 0
+    while ((cm = sIdNear.exec(headerWindow)) !== null) {
+      const si = parseInt(cm[1], 10)
+      if (si < 1 || si > 9999) continue
+      let tranId = cm[2]
+      if (cm[3]) tranId += cm[3]
+      cands.push({ si, tranId, idx: cm.index, matchLen: cm[0].length })
+    }
+    if (cands.length === 0) continue
+    const header = cands[cands.length - 1]
+    const { si, tranId } = header
 
-    // Transaction date: first full-year DD/Mon/YYYY in the block (before posted datetime)
-    const headerSection = postedInBlock ? flatFixed.slice(rowStart, postedInBlock.index) : block
-    const dateMatches = [...headerSection.matchAll(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g)]
-    let txnDate = parseDate(cur.dateStr)
+    // De-dupe: same TranID seen earlier in this run means page-break reprint
+    if (seenTranIds.has(tranId)) continue
+
+    // ── Transaction date: prefer full DD/Mon/YYYY in headerWindow after the
+    // header position; else fall back to posted-dt date ──
+    let txnDate = cur.isoDate
+    const afterHeader = headerWindow.slice(header.idx + header.matchLen)
+    const dateMatches = [...afterHeader.matchAll(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g)]
     if (dateMatches.length > 0) {
       const d = parseDate(dateMatches[0][0])
       if (d) txnDate = d
     }
 
-    // Amounts: the LAST 2 .dd numbers in the tail are [txnAmount, balance].
-    //
-    // Edge case: ICICI page-break inserts "Balance b/f" or repeats the closing
-    // balance at the top of the next page. This can make the same balance value
-    // appear twice in our tail (txn, balance, balance_bf). Dedupe consecutive
-    // equal amounts to handle this.
-    const rawAmounts = findAmounts(tail)
+    // ── Find amounts in postBlock ──
+    // The last 2 .dd values are [txnAmount, balance]. Anything past them
+    // (the next row's header digits) doesn't contain ".dd" so it's filtered.
+    // Page-break: same balance may repeat — dedupe consecutive duplicates.
+    const rawAmounts = findAmounts(postBlock)
     const amounts: number[] = []
     for (const a of rawAmounts) {
       if (amounts.length === 0 || amounts[amounts.length - 1] !== a) amounts.push(a)
@@ -293,18 +310,20 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     const balance = amounts[amounts.length - 1]
     const txnAmount = amounts[amounts.length - 2]
 
-    // Remarks: start at the first mode keyword in the tail (skips cheque/ref noise),
-    // then strip the trailing amounts.
-    let remarks = tail.trim()
+    // ── Remarks: from first mode keyword in postBlock, stripped of amounts
+    // and any trailing next-row header fragments ──
+    let remarks = postBlock
     const modeStart = remarks.search(/\b(UPI|NEFT|RTGS|MMT|IMPS|INF)\b/i)
     if (modeStart >= 0) remarks = remarks.slice(modeStart)
-    // Strip the trailing 2 amounts and any other .dd numbers from remarks
+    // Cut off anything that looks like a trailing next-row header
+    const tailHeaderCut = remarks.search(/\s\d{1,4}\s+S\d{3,}(?:\s|$)/)
+    if (tailHeaderCut > 0) remarks = remarks.slice(0, tailHeaderCut)
     remarks = remarks
       .replace(/\d{1,3}(?:,?\d{2,3})*\.\d{2}/g, '')
       .replace(/\s{2,}/g, ' ')
       .trim()
 
-    // Mode from remarks prefix
+    // Mode classification
     const ru = remarks.toUpperCase()
     let mode = 'OTHER'
     if (/^UPI/.test(ru)) mode = 'UPI'
@@ -312,25 +331,20 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     else if (/^RTGS/.test(ru) || /RTGS\//.test(ru)) mode = 'RTGS'
     else if (/^(MMT|IMPS)/.test(ru)) mode = 'IMPS'
 
-    // Determine Dr vs Cr
-    // Cr transactions visible in this DR-filtered statement:
-    //   NEFT-RETURN*, RTGS RETURN*, RTGSCNRBR*, NEFTCNRBH* (Sarvani credits),
-    //   any remarks containing "SARVANI BIO FUELS"
+    // Dr vs Cr: ICICI inward credits come back as "NEFTCNRBH-SARVANI...",
+    // "RTGSCNRBR...", or "NEFT-RETURN"/"RTGS RETURN" reversals
     const isCredit =
       /NEFT.?RETURN/i.test(remarks) ||
       /RTGS.?RETURN/i.test(remarks) ||
       /RTGSCNRBR/i.test(remarks) ||
       /SARVANI BIO FUELS/i.test(remarks) ||
-      // NEFTCNRBH = inward NEFT credit from Canara Bank (Sarvani's bank)
-      // BUT only when it's a deposit — distinguish by checking if remarks
-      // contains "-SARVANI" pattern
       (/NEFTCNRBH/i.test(remarks) && /SARVANI/i.test(remarks))
 
     const { paidTo, accountRef } = extractBeneficiary(remarks)
 
     rows.push({
-      si: cur.si,
-      tranId: cur.tranId,
+      si,
+      tranId,
       txnDate,
       remarks: remarks.slice(0, 300),
       paidTo,
@@ -339,9 +353,10 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
       deposit: isCredit ? txnAmount : 0,
       balance,
       mode,
-      _rawBlock: tail.slice(0, 400),
+      _rawBlock: postBlock.slice(0, 400),
       _amounts: amounts,
     })
+    seenTranIds.add(tranId)
   }
 
   return {
