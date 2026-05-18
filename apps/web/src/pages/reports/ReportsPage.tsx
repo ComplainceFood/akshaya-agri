@@ -233,6 +233,7 @@ function SupplierTab() {
   const { data, isLoading } = useSupplierReport(sParams)
   const rows: any[] = data?.rows || []
   const payments: any[] = data?.paymentHistory || []
+  const deliveryList: any[] = data?.deliveryList || []
 
   const totalOutstanding = rows.reduce((s, r) => s + Math.max(0, r.outstanding), 0)
   const totalPurchase = rows.reduce((s, r) => s + r.totalPurchaseValue, 0)
@@ -260,6 +261,18 @@ function SupplierTab() {
     { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, ...nw, render: (v: number) => <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> },
     { title: 'Notes', dataIndex: 'notes', key: 'notes', ellipsis: true },
   ]
+
+  const deliveryColumns = [
+    { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 95, ...nw, render: (v: string) => dayjs(v).format('DD/MM/YYYY') },
+    { title: 'Slip No.', key: 'slip', width: 95, ...nw, render: (_: any, r: any) => r.lrNumber || r.deliveryNumber || '-' },
+    { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110, ...nw },
+    { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity', width: 130, ellipsis: true, ...nw },
+    { title: 'Net Weight (Qt)', dataIndex: 'adjustedWeight', key: 'wt', align: 'right' as const, width: 120, ...nw, render: formatQt },
+    { title: 'Rate (₹/Qt)', dataIndex: 'purchaseRate', key: 'rate', align: 'right' as const, width: 100, ...nw, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
+    { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', align: 'right' as const, width: 130, ...nw, render: (v: number) => v != null ? formatINR(v) : '-' },
+  ]
+  const deliveryListTotalWt = deliveryList.reduce((s, r) => s + Number(r.adjustedWeight ?? 0), 0)
+  const deliveryListTotalPv = deliveryList.reduce((s, r) => s + Number(r.purchaseValue ?? 0), 0)
 
   const dateLabel = from && to ? `${dayjs(from).format('DD MMM YYYY')} to${dayjs(to).format('DD MMM YYYY')}` : 'All dates'
   const filterLabel = supplierId ? (suppliers.find((s: any) => s.id === supplierId)?.name ?? '') : 'All Suppliers'
@@ -297,6 +310,31 @@ function SupplierTab() {
         <td class="right red">${formatINR(totalOutstanding)}</td>
       </tr></tfoot>
     </table>
+    ${deliveryList.length > 0 ? `
+      <div class="section-title">Deliveries in this Period (${deliveryList.length})</div>
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Slip No.</th><th>Vehicle</th><th>Commodity</th>
+          <th class="right">Net Weight (Qt)</th><th class="right">Rate (₹/Qt)</th><th class="right">Purchase Value</th>
+        </tr></thead>
+        <tbody>
+          ${deliveryList.map((d: any) => `<tr>
+            <td>${dayjs(d.deliveryDate).format('DD/MM/YYYY')}</td>
+            <td>${d.lrNumber || d.deliveryNumber || '-'}</td>
+            <td>${d.vehicleNumber || '-'}</td>
+            <td>${d.commodity?.name || '-'}</td>
+            <td class="right">${formatQt(d.adjustedWeight)}</td>
+            <td class="right">${d.purchaseRate ? Number(d.purchaseRate).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}</td>
+            <td class="right">${d.purchaseValue != null ? formatINR(d.purchaseValue) : '-'}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td colspan="4"><b>Total</b></td>
+          <td class="right">${formatQt(deliveryListTotalWt)}</td>
+          <td></td>
+          <td class="right">${formatINR(deliveryListTotalPv)}</td>
+        </tr></tfoot>
+      </table>` : ''}
     ${payments.length > 0 ? `
       <div class="section-title">Payment History</div>
       <table>
@@ -350,6 +388,23 @@ function SupplierTab() {
           </Table.Summary.Row>
         ) : undefined}
       />
+
+      {supplierId && deliveryList.length > 0 && (
+        <>
+          <Divider orientation="left" style={{ marginTop: 24 }}>Deliveries in this Period ({deliveryList.length})</Divider>
+          <Table dataSource={deliveryList} columns={deliveryColumns} rowKey="id" size="small" scroll={{ x: 780 }}
+            pagination={{ pageSize: 50, showSizeChanger: true, showTotal: t => `${t} deliveries` }}
+            summary={() => (
+              <Table.Summary.Row style={{ fontWeight: 600, background: '#fafafa' }}>
+                <Table.Summary.Cell index={0} colSpan={4}>Total</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">{formatQt(deliveryListTotalWt)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={2} />
+                <Table.Summary.Cell index={3} align="right">{formatINR(deliveryListTotalPv)}</Table.Summary.Cell>
+              </Table.Summary.Row>
+            )}
+          />
+        </>
+      )}
 
       {supplierId && payments.length > 0 && (
         <>

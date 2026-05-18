@@ -221,17 +221,35 @@ Deno.serve(async (req) => {
       outstanding: r.totalNetPayable - r.totalPaid,
     })).sort((a: any, b: any) => b.totalPurchaseValue - a.totalPurchaseValue)
 
-    // If drilling into a single supplier, also return payment history
+    // If drilling into a single supplier, also return payment history and the per-delivery list
     let paymentHistory = null
+    let deliveryList = null
     if (supplierId) {
       const { data: ph } = await db.from('SupplierPayment')
         .select('id, paymentNumber, amount, paymentDate, notes, supplier:Supplier(id,name)')
         .eq('supplierId', supplierId)
         .order('paymentDate', { ascending: false })
       paymentHistory = ph
+
+      let dlQuery = db.from('Delivery')
+        .select('id, deliveryDate, deliveryNumber, lrNumber, vehicleNumber, adjustedWeight, purchaseRate, purchaseValue, commodityId')
+        .eq('supplierId', supplierId)
+      if (from) dlQuery = dlQuery.gte('deliveryDate', from)
+      if (to) dlQuery = dlQuery.lte('deliveryDate', to)
+      const { data: dl } = await dlQuery.order('deliveryDate', { ascending: true })
+      const commodityIds = [...new Set((dl || []).map((d: any) => d.commodityId).filter(Boolean))]
+      let commodityMap: Record<string, any> = {}
+      if (commodityIds.length > 0) {
+        const { data: comms } = await db.from('Commodity').select('id,name').in('id', commodityIds)
+        for (const c of (comms || [])) commodityMap[c.id] = c
+      }
+      deliveryList = (dl || []).map((d: any) => ({
+        ...d,
+        commodity: d.commodityId ? commodityMap[d.commodityId] ?? null : null,
+      }))
     }
 
-    return json({ rows, paymentHistory })
+    return json({ rows, paymentHistory, deliveryList })
   }
 
   // ── GET /reports/customer ──────────────────────────────────────────────────
