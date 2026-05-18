@@ -40,13 +40,14 @@ function calcDerived(r: any) {
   const saleValue = grossSaleValue != null
     ? grossSaleValue - (cessAmount ?? 0) - mcDeduction
     : null
-  // Margin = net sale realisation − purchase cost (deductions already inside saleValue).
-  const grossMargin = saleValue != null && purchaseValue != null
-    ? saleValue - purchaseValue
-    : null
   // Supplier payout: MC is passed through (same amount the customer deducted from us).
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction
+    : null
+  // Margin = what we received from customer − what we paid to supplier.
+  // saleValue is net of cess + MC (customer-side); netPayable is net of cess + MC (supplier-side).
+  const grossMargin = saleValue != null && netPayable != null
+    ? saleValue - netPayable
     : null
   return { netWeight, adjustedWeight, purchaseValue, grossSaleValue, saleValue, grossMargin, mcDeduction, balanceCess, netPayable }
 }
@@ -103,7 +104,7 @@ function DeliveryDetail({ id }: { id: string }) {
         <b>{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</b>
         <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Gross Sale − Cess − MC Deduction)</span>
       </Descriptions.Item>
-      <Descriptions.Item label="Margin (Sale Value − Gross Amt)" span={2}>
+      <Descriptions.Item label="Margin (Sale Value − Net Payable)" span={2}>
         <b style={{ color: calc.grossMargin != null && calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{calc.grossMargin != null ? formatINR(calc.grossMargin) : '-'}</b>
       </Descriptions.Item>
       {d.notes && <Descriptions.Item label="Notes" span={2}>{d.notes}</Descriptions.Item>}

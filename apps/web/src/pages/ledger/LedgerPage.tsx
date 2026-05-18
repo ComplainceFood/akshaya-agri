@@ -466,16 +466,19 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
   const invoices = data?.invoices || []
 
   // Group by commodity for HSN-wise summary.
-  // saleValue on Delivery is the net realisation (gross − cess − MC).
+  // saleValue   = net realisation from customer (gross − cess − MC).
+  // netPayable  = what we paid the supplier (gross purchase − cess − MC).
+  // margin      = saleValue − netPayable.
   const hsnMap: Record<string, { name: string; hsn: string; saleValue: number; purchaseValue: number; margin: number; cess: number; count: number }> = {}
   for (const d of deliveries) {
     const key = d.commodity?.id || 'unknown'
     if (!hsnMap[key]) hsnMap[key] = { name: d.commodity?.name || '-', hsn: d.commodity?.hsnCode || '-', saleValue: 0, purchaseValue: 0, margin: 0, cess: 0, count: 0 }
     const sv = Number(d.saleValue ?? 0)
     const pv = Number(d.purchaseValue ?? 0)
+    const np = Number(d.netPayable ?? 0)
     hsnMap[key].saleValue += sv
     hsnMap[key].purchaseValue += pv
-    hsnMap[key].margin += sv - pv
+    hsnMap[key].margin += sv - np
     hsnMap[key].cess += Number(d.cessPaid ?? 0)
     hsnMap[key].count++
   }

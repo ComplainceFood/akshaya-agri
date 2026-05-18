@@ -38,13 +38,14 @@ function calcDelivery(data: {
   const saleValue = grossSaleValue !== null
     ? grossSaleValue - (cessAmount ?? 0) - mcDeduction
     : null
-  // Margin = net sale realisation − purchase cost (deductions already inside saleValue).
-  const grossMargin = saleValue !== null && purchaseValue !== null
-    ? saleValue - purchaseValue
-    : null
   // Supplier payout: MC is passed through (same amount the customer deducted from us).
   const netPayable = purchaseValue !== null && balanceCess !== null
     ? purchaseValue - balanceCess - mcDeduction
+    : null
+  // Margin = what we received from customer − what we paid to supplier.
+  // saleValue is net of cess + MC (customer-side); netPayable is net of cess + MC (supplier-side).
+  const grossMargin = saleValue !== null && netPayable !== null
+    ? saleValue - netPayable
     : null
 
   return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, netPayable, balanceCess }
