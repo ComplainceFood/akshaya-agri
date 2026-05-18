@@ -37,6 +37,16 @@ interface MappedRow extends ParsedRow {
   customerId: string | null
 }
 
+interface Reconciliation {
+  parsedWithdrawals: number
+  parsedDeposits: number
+  summaryWithdrawals: number | null
+  summaryDeposits: number | null
+  withdrawalsMatch: boolean
+  depositsMatch: boolean
+  netMatch: boolean
+}
+
 const modeColor: Record<string, string> = {
   UPI: 'cyan', NEFT: 'blue', RTGS: 'purple', IMPS: 'geekblue', OTHER: 'default',
 }
@@ -65,6 +75,7 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
   const [parsing, setParsing] = useState(false)
   const [debugText, setDebugText] = useState('')
   const [showDebug, setShowDebug] = useState(false)
+  const [recon, setRecon] = useState<Reconciliation | null>(null)
 
   const { data: suppliers = [] } = useSuppliers()
   const { data: customers = [] } = useCustomers()
@@ -82,6 +93,7 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
 
       const parsed: ParsedRow[] = resp.data.rows || []
       setDebugText((resp.data.debug || '') + '\n\n--- chars 3000-6000 ---\n' + (resp.data.flatSample || ''))
+      setRecon(resp.data.reconciliation || null)
 
       if (!parsed.length) {
         antMessage.error('No transactions found. See debug info.')
@@ -374,6 +386,18 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
           </Space>
         }
       >
+        {recon && recon.summaryWithdrawals !== null && (
+          <Alert
+            type={recon.withdrawalsMatch && recon.depositsMatch ? 'success' : 'error'}
+            showIcon
+            style={{ marginBottom: 10, fontSize: 11 }}
+            message={
+              recon.withdrawalsMatch && recon.depositsMatch
+                ? `Reconciled against statement totals: Dr ${formatINR(recon.parsedWithdrawals)} / Cr ${formatINR(recon.parsedDeposits)} match.`
+                : `Totals mismatch — some rows likely missed. Parsed Dr ${formatINR(recon.parsedWithdrawals)} vs statement ${formatINR(recon.summaryWithdrawals!)}; Parsed Cr ${formatINR(recon.parsedDeposits)} vs statement ${formatINR(recon.summaryDeposits!)}.`
+            }
+          />
+        )}
         <Alert
           type="info" showIcon style={{ marginBottom: 10, fontSize: 11 }}
           message="Check the rows you want to import. Deselect bank charges, internal transfers, or anything that isn't a supplier payment or customer receipt."
