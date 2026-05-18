@@ -13,15 +13,43 @@ import { requireAuth } from '../_shared/auth.ts'
 // by an S-prefixed tran id. We find all SI boundaries in sequence, slice the text
 // between them, then extract amount and date with regex.
 
-async function extractPdfText(bytes: Uint8Array): Promise<string> {
+// Extract text per-page so page-break artefacts (footers/headers like "Page 3 of 13",
+// repeated column headers) don't merge into the middle of a transaction row.
+async function extractPdfPages(bytes: Uint8Array): Promise<string[]> {
   // @ts-ignore
   const { extractText } = await import('https://esm.sh/unpdf@0.11.0')
-  const result = await extractText(bytes, { mergePages: true })
-  if (typeof result === 'string') return result
-  if (result?.text) return result.text
-  if (result?.pages) return (result.pages as string[]).join('\n')
-  if (Array.isArray(result)) return result.join('\n')
-  return String(result)
+  const result = await extractText(bytes, { mergePages: false })
+  if (Array.isArray(result)) return result.map(String)
+  if (result?.text && Array.isArray(result.text)) return result.text.map(String)
+  if (typeof result?.text === 'string') return [result.text]
+  if (result?.pages) return (result.pages as string[]).map(String)
+  if (typeof result === 'string') return [result]
+  return [String(result)]
+}
+
+// Strip per-page boilerplate: page numbers, repeated column headers, statement
+// metadata that appears at the top/bottom of each page and would otherwise leak
+// into the middle of a transaction row when pages are concatenated.
+function stripPageBoilerplate(pageText: string): string {
+  return pageText
+    // "Page 3 of 13" or "Page 3 of13" (no space)
+    .replace(/Page\s*\d+\s*of\s*\d+/gi, ' ')
+    // Repeated column header line
+    .replace(/SI\s*No\.?\s*Tran(?:saction)?\s*Id.*?Balance/gi, ' ')
+    // Withdrawal/Deposit/Balance header sequence
+    .replace(/Withdrawal\s*\(?Dr\)?\s*Deposit\s*\(?Cr\)?\s*Balance/gi, ' ')
+    // Statement period line
+    .replace(/Statement\s*Period\s*:?[^\n]{0,80}/gi, ' ')
+    // Customer info repeated on each page (cust name, address)
+    .replace(/Account\s*Number\s*:?\s*\d+/gi, ' ')
+    .replace(/Customer\s*Name\s*:?[^\n]{0,80}/gi, ' ')
+    // Generated-on timestamps (look like posted-dt but aren't transactions)
+    .replace(/(Generated|Printed|Downloaded)\s*on\s*:?\s*\d{1,2}[-\/][A-Za-z]{3,9}[-\/]\d{2,4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi, ' ')
+}
+
+async function extractPdfText(bytes: Uint8Array): Promise<string> {
+  const pages = await extractPdfPages(bytes)
+  return pages.map(stripPageBoilerplate).join(' ')
 }
 
 // Parse Indian-formatted amount strings like "1,00,000.00" or "1,00,000. 00"
@@ -227,13 +255,13 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
 
     // The row's content ends at the START of the next header (or end of text)
     const rowEnd = next ? next.index : flatFixed.length
-    // The row's content starts right after the header
+    // The row's content starts right after THIS row's header
     const rowStart = cur.endIndex
 
     // Slice the full row (header end → next header start)
     const block = flatFixed.slice(rowStart, rowEnd)
 
-    // Find the posted datetime within this block
+    // Find the posted datetime within this block (skip if multiple, take first)
     const postedInBlock = postedPositions.find(p => p.index >= rowStart && p.index < rowEnd)
     // Everything after the posted datetime is: ChequeRef + Remarks + TxnAmount + Balance
     const tail = postedInBlock
@@ -249,8 +277,17 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
       if (d) txnDate = d
     }
 
-    // Amounts: the LAST 2 .dd numbers in the tail are [txnAmount, balance]
-    const amounts = findAmounts(tail)
+    // Amounts: the LAST 2 .dd numbers in the tail are [txnAmount, balance].
+    //
+    // Edge case: ICICI page-break inserts "Balance b/f" or repeats the closing
+    // balance at the top of the next page. This can make the same balance value
+    // appear twice in our tail (txn, balance, balance_bf). Dedupe consecutive
+    // equal amounts to handle this.
+    const rawAmounts = findAmounts(tail)
+    const amounts: number[] = []
+    for (const a of rawAmounts) {
+      if (amounts.length === 0 || amounts[amounts.length - 1] !== a) amounts.push(a)
+    }
     if (amounts.length < 2) continue
 
     const balance = amounts[amounts.length - 1]
