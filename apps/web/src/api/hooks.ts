@@ -264,7 +264,15 @@ export const useDailyRates = (date: string | null, commodityId: string | null) =
       if (!date || !commodityId) return { purchaseRate: null, saleRate: null }
       const [pr, sr] = await Promise.all([
         api.get('/purchase-orders', { params: { date, commodityId } }).then(r => r.data?.[0]?.ratePerQuintal ?? null),
-        api.get('/sales-orders', { params: { date, commodityId } }).then(r => r.data?.[0]?.ratePerQuintal ?? null),
+        // Sale rates are not updated daily — if no rate exists for the exact date, fall back
+        // to the most recent rate on or before the delivery date.
+        (async () => {
+          const exact = await api.get('/sales-orders', { params: { date, commodityId } }).then(r => r.data?.[0]?.ratePerQuintal ?? null)
+          if (exact != null) return exact
+          const history = await api.get('/sales-orders', { params: { commodityId } }).then(r => r.data ?? [])
+          const latest = history.find((row: any) => row.rateDate <= date)
+          return latest?.ratePerQuintal ?? null
+        })(),
       ])
       return { purchaseRate: pr, saleRate: sr }
     },
