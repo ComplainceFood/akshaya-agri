@@ -96,6 +96,8 @@ interface TxnRow {
   deposit: number      // Cr
   balance: number
   mode: string
+  _rawBlock?: string   // debug: the raw text block this row was parsed from
+  _amounts?: number[]  // debug: all amounts found in the block
 }
 
 // Parse the structured remarks string into paidTo and accountRef.
@@ -171,89 +173,95 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
   })
 
   // Fix split SI numbers: "2 61 S0123456 01/May/2026" → "261 S0123456 ..."
-  // SI is followed by Tran ID (S+digits) so we can detect the split
   flat = flat.replace(/\b(\d{1,3})\s+(\d{1,2})\s+(S\d{3,})/g, '$1$2 $3')
 
   // Fix split Tran IDs: "S4987" + "083" → "S4987083"
   flat = flat.replace(/\b(S\d{4,})\s+(\d{2,4})\b/g, '$1$2')
 
-  // Normalise amounts in the whole flat text up front (so block splitting respects glued numbers)
+  // Normalise split amounts up front
   const flatFixed = normaliseAmounts(flat)
 
-  // Boundary: SI (1-4 digits) + Tran ID (S + 4+ digits) + value date
-  const boundaryRe = /\b(\d{1,4})\s+(S\d{4,})\s+(\d{2}\/[A-Za-z]{3,9}\/\d{2,4})/g
+  // ── Strategy: anchor on POSTED DATETIME (DD-Mon-YYYY HH:MM:SS AM/PM) ──
+  // This appears exactly once per transaction and is highly stable.
+  // For each posted-datetime position, the transaction's amounts (txn + balance)
+  // are the LAST 2 numbers that appear BEFORE the NEXT posted-datetime (or end of text).
+  //
+  // We also need the SI/TranID/ValueDate (which appear BEFORE the posted-datetime
+  // for the same row) to identify the transaction.
 
-  const boundaries: Array<{
-    si: number; tranId: string; dateStr: string; start: number; contentStart: number
-  }> = []
+  const postedDtRe = /\d{2}-[A-Za-z]{3,9}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi
+  const postedPositions: Array<{ index: number; length: number; text: string }> = []
+  let pm: RegExpExecArray | null
+  while ((pm = postedDtRe.exec(flatFixed)) !== null) {
+    postedPositions.push({ index: pm.index, length: pm[0].length, text: pm[0] })
+  }
 
+  // SI + TranID + ValueDate boundary regex (used to identify each row's header)
+  const headerRe = /\b(\d{1,4})\s+(S\d{4,})\s+(\d{2}\/[A-Za-z]{3,9}\/\d{2,4})/g
+
+  // Build list of all headers
+  const headers: Array<{ si: number; tranId: string; dateStr: string; index: number; endIndex: number }> = []
+  let hm: RegExpExecArray | null
+  while ((hm = headerRe.exec(flatFixed)) !== null) {
+    headers.push({
+      si: parseInt(hm[1], 10),
+      tranId: hm[2],
+      dateStr: hm[3],
+      index: hm.index,
+      endIndex: hm.index + hm[0].length,
+    })
+  }
+
+  // Filter headers: keep only those with ascending SI (skip header re-prints on page breaks)
+  const validHeaders: typeof headers = []
   let lastSi = 0
-  let m: RegExpExecArray | null
-  while ((m = boundaryRe.exec(flatFixed)) !== null) {
-    const si = parseInt(m[1], 10)
-    // Accept ascending SI numbers (allow any forward jump — false matches are rare
-    // because the SI+TranID+Date triple is very specific)
-    if (si > lastSi && si < 10000) {
-      boundaries.push({
-        si,
-        tranId: m[2],
-        dateStr: m[3],
-        start: m.index,
-        contentStart: m.index + m[0].length,
-      })
-      lastSi = si
-    }
+  for (const h of headers) {
+    if (h.si > lastSi && h.si < 10000) { validHeaders.push(h); lastSi = h.si }
   }
 
   const rows: TxnRow[] = []
 
-  for (let i = 0; i < boundaries.length; i++) {
-    const cur = boundaries[i]
-    const next = boundaries[i + 1]
-    // Block: from after the boundary match up to the next boundary start
-    const block = flatFixed.slice(cur.contentStart, next ? next.start : flatFixed.length)
+  for (let i = 0; i < validHeaders.length; i++) {
+    const cur = validHeaders[i]
+    const next = validHeaders[i + 1]
 
-    // Date: try to get the transaction date (first full-year date in the block)
-    const allDates = [...block.matchAll(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g)]
+    // The row's content ends at the START of the next header (or end of text)
+    const rowEnd = next ? next.index : flatFixed.length
+    // The row's content starts right after the header
+    const rowStart = cur.endIndex
+
+    // Slice the full row (header end → next header start)
+    const block = flatFixed.slice(rowStart, rowEnd)
+
+    // Find the posted datetime within this block
+    const postedInBlock = postedPositions.find(p => p.index >= rowStart && p.index < rowEnd)
+    // Everything after the posted datetime is: ChequeRef + Remarks + TxnAmount + Balance
+    const tail = postedInBlock
+      ? flatFixed.slice(postedInBlock.index + postedInBlock.length, rowEnd)
+      : block
+
+    // Transaction date: first full-year DD/Mon/YYYY in the block (before posted datetime)
+    const headerSection = postedInBlock ? flatFixed.slice(rowStart, postedInBlock.index) : block
+    const dateMatches = [...headerSection.matchAll(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g)]
     let txnDate = parseDate(cur.dateStr)
-    if (allDates.length > 0) {
-      const d = parseDate(allDates[0][0])
+    if (dateMatches.length > 0) {
+      const d = parseDate(dateMatches[0][0])
       if (d) txnDate = d
     }
 
-    // Amounts: every transaction row ends with two amounts (txn + balance, both .dd).
-    // If we find only 1, the row is incomplete — skip.
-    const amounts = findAmounts(block)
+    // Amounts: the LAST 2 .dd numbers in the tail are [txnAmount, balance]
+    const amounts = findAmounts(tail)
     if (amounts.length < 2) continue
 
-    // Layout: ...remarks... <txnAmount> <balance>
-    // Take the LAST two amounts: balance is last, txn amount is second-last.
-    // (Earlier amounts inside the block are part of remarks: account numbers, refs, etc.
-    //  but those usually don't have .dd so they wouldn't match anyway.)
     const balance = amounts[amounts.length - 1]
     const txnAmount = amounts[amounts.length - 2]
 
-    // Remarks: the actual transaction description starts after the posted datetime
-    // Block layout: [TxnDate DD/Mon/YYYY] [PostedDate DD-Mon-YYYY HH:MM:SS AM/PM] [ChequeRef] [Remarks...] [Amount] [Balance]
-    // Extract text after the posted datetime to skip the cheque/ref field noise
-    let remarks = ''
-    const postedDtMatch = block.match(/\d{2}-[A-Za-z]{3}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/i)
-    if (postedDtMatch) {
-      const afterPosted = block.slice((postedDtMatch.index ?? 0) + postedDtMatch[0].length).trim()
-      // Skip cheque/ref: a hex string or alphanumeric ref before the first known mode keyword
-      // Remarks start at UPI/NEFT/RTGS/MMT/IMPS/INF or first slash-delimited token
-      const modeStart = afterPosted.search(/\b(UPI|NEFT|RTGS|MMT|IMPS|INF)\b/i)
-      remarks = modeStart >= 0 ? afterPosted.slice(modeStart) : afterPosted
-    }
-    // Fallback: strip all dates/times/amounts from whole block
-    if (!remarks.trim()) {
-      remarks = block
-        .replace(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g, '')
-        .replace(/\d{2}-[A-Za-z]{3}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
-        .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '')
-        .replace(/\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
-    }
-    // Strip trailing amounts (any digit.dd pattern) and whitespace
+    // Remarks: start at the first mode keyword in the tail (skips cheque/ref noise),
+    // then strip the trailing amounts.
+    let remarks = tail.trim()
+    const modeStart = remarks.search(/\b(UPI|NEFT|RTGS|MMT|IMPS|INF)\b/i)
+    if (modeStart >= 0) remarks = remarks.slice(modeStart)
+    // Strip the trailing 2 amounts and any other .dd numbers from remarks
     remarks = remarks
       .replace(/\d{1,3}(?:,?\d{2,3})*\.\d{2}/g, '')
       .replace(/\s{2,}/g, ' ')
@@ -294,6 +302,8 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
       deposit: isCredit ? txnAmount : 0,
       balance,
       mode,
+      _rawBlock: tail.slice(0, 400),
+      _amounts: amounts,
     })
   }
 

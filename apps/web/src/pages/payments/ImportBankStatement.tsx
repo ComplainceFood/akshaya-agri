@@ -26,6 +26,8 @@ interface ParsedRow {
   deposit: number        // Cr
   balance: number
   mode: string
+  _rawBlock?: string     // debug: raw text the row was parsed from
+  _amounts?: number[]    // debug: all amounts found in the block
 }
 
 interface MappedRow extends ParsedRow {
