@@ -45,168 +45,140 @@ async function parsePDF(file: File): Promise<BankRow[]> {
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
-  // Collect items per page with x, y (top-origin), page number
-  const allItems: { x: number; y: number; pg: number; text: string }[] = []
-
+  // Concatenate ALL text items in reading order into one big string
+  // Skip empty strings but join non-empty ones with a single space
+  const allText: string[] = []
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
-    const viewport = page.getViewport({ scale: 1 })
     const content = await page.getTextContent()
     for (const item of content.items as any[]) {
       const s = item.str
-      if (!s?.trim()) continue
-      allItems.push({
-        x: Math.round(item.transform[4]),
-        y: Math.round(viewport.height - item.transform[5]),
-        pg: p,
-        text: s.trim(),
-      })
+      if (!s) continue
+      const trimmed = s.trim()
+      if (trimmed) allText.push(trimmed)
     }
   }
 
-  return parseICICIStream(allItems)
+  return parseICICIFlatText(allText)
 }
 
-// ── ICICI text-stream parser ───────────────────────────────────────────────
-// Strategy: sort by page then y then x, group into visual lines (y within 4px),
-// then scan for lines starting with an integer SI number.
-// Between consecutive SI-number lines we collect all tokens and extract
-// the fields using positional column X ranges detected from the header.
-function parseICICIStream(
-  allItems: { x: number; y: number; pg: number; text: string }[]
-): BankRow[] {
-  // Sort: page → y → x
-  allItems.sort((a, b) => a.pg - b.pg || a.y - b.y || a.x - b.x)
+// ── ICICI flat-text parser ────────────────────────────────────────────────
+// Strategy: PDF fragments come in reading order. Each transaction starts with
+// "<SI_NO> S<digits>" pattern. We scan tokens, and when we find a SI number
+// followed by a Tran Id, we collect everything until the next SI/Tran Id pair
+// and extract amounts/dates/remarks via regex on the joined string.
+function parseICICIFlatText(tokens: string[]): BankRow[] {
+  // Join all tokens with single space — this normalizes split fragments
+  const fullText = tokens.join(' ')
 
-  // Group into visual lines (items whose y is within 4px of first item in group)
-  type LineItem = { x: number; text: string }
-  type Line = { pg: number; y: number; items: LineItem[] }
-  const lines: Line[] = []
+  // Find all transaction starts: <SI_number> S<digits> (e.g., "1 S4987 083" or "12 S2203 0652")
+  // SI number is 1-3 digits. Tran Id starts with S and contains digits, possibly split by spaces.
+  // We use a regex with multiple captures and process the matches in order.
 
-  for (const item of allItems) {
-    const last = lines[lines.length - 1]
-    if (last && last.pg === item.pg && Math.abs(item.y - last.y) <= 4) {
-      last.items.push({ x: item.x, text: item.text })
-    } else {
-      lines.push({ pg: item.pg, y: item.y, items: [{ x: item.x, text: item.text }] })
-    }
-  }
+  // Match: SI_NO + space + S<digits> [optional space + more digits]
+  // Followed by: date / amounts / remarks until next SI_NO + S<digits>
+  // Easiest: find all positions of "<N> S<digits>" boundaries, then slice between them.
 
-  // Detect column X positions from the header line
-  // The header contains "Sl" / "Tran" / "Value Date" / "Withdrawal" / "Deposit" / "Balance"
-  let colX = {
-    siNo: 28, tranId: 58, valueDate: 110, txnDate: 168, postedDate: 228,
-    cheque: 290, remarks: 355, withdrawal: 460, deposit: 515, balance: 572,
-  }
-  for (const line of lines) {
-    const joined = line.items.map(i => i.text).join(' ').toLowerCase()
-    if (joined.includes('withdrawal') && joined.includes('deposit') && joined.includes('balance') && joined.includes('tran')) {
-      const find = (kw: string) => line.items.find(i => i.text.toLowerCase().includes(kw))?.x ?? 0
-      colX = {
-        siNo:       find('sl') || find('si') || colX.siNo,
-        tranId:     find('tran id') || find('tran') || colX.tranId,
-        valueDate:  find('value') || colX.valueDate,
-        txnDate:    find('transaction d') || colX.txnDate,
-        postedDate: find('posted') || colX.postedDate,
-        cheque:     find('cheque') || colX.cheque,
-        remarks:    find('remarks') || find('transaction r') || colX.remarks,
-        withdrawal: find('withdrawal') || find('withdra') || colX.withdrawal,
-        deposit:    find('deposit') || colX.deposit,
-        balance:    find('balance') || colX.balance,
-      }
-      break
-    }
-  }
-
-  // Helper: collect text from a line's items within an X column range
-  function colText(items: LineItem[], xMin: number, xMax: number) {
-    return items.filter(i => i.x >= xMin && i.x < xMax).map(i => i.text).join(' ').trim()
-  }
-
-  // Find indices of "transaction start" lines (SI number at leftmost column)
-  // SI number: 1-3 digit integer appearing at x near siNo column
-  const txnLineIdxs: number[] = []
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    // Must have an item in the SI No column range
-    const siItem = line.items.find(it => it.x >= colX.siNo - 8 && it.x < colX.tranId)
-    if (siItem && /^\d{1,4}$/.test(siItem.text)) {
-      txnLineIdxs.push(i)
-    }
-  }
+  // Find ALL match positions for "<num> S<digits>" where num is the running SI.
+  // We expect SI numbers to be sequential starting from 1.
 
   const rows: BankRow[] = []
-  let key = 0
 
-  for (let t = 0; t < txnLineIdxs.length; t++) {
-    const startIdx = txnLineIdxs[t]
-    const endIdx   = t + 1 < txnLineIdxs.length ? txnLineIdxs[t + 1] : lines.length
+  // Use a regex that finds: word-boundary, SI number, space, S followed by 4+ digits
+  const boundaryRe = /(?<=\s|^)(\d{1,3})\s+(S\d{3,}(?:\s+\d+)?)\s+(\d{1,2}\/\w{3}\/\d{2,4}(?:\s*\d{0,2})?)/g
 
-    // Collect all items in this transaction's lines (may span 2-4 visual lines)
-    const txnLines = lines.slice(startIdx, endIdx)
+  // Collect all match start positions and expected SI numbers
+  const matches: { si: number; tranId: string; dateStr: string; startIdx: number; matchEnd: number }[] = []
+  let m: RegExpExecArray | null
+  let lastSi = 0
+  while ((m = boundaryRe.exec(fullText)) !== null) {
+    const si = parseInt(m[1], 10)
+    // Only accept SI numbers that follow sequence (allow same or +1, skip header noise)
+    if (si === lastSi + 1 || (lastSi === 0 && si === 1)) {
+      matches.push({
+        si,
+        tranId: m[2].replace(/\s+/g, ''),
+        dateStr: m[3].replace(/\s+/g, ''),
+        startIdx: m.index,
+        matchEnd: m.index + m[0].length,
+      })
+      lastSi = si
+    }
+  }
 
-    // Accumulate text by column across all txn lines
-    let remarkParts: string[] = []
-    let drTokens: string[] = []
-    let crTokens: string[] = []
-    let balTokens: string[] = []
-    let dates: string[] = []
-    let tranIdParts: string[] = []
-    let chequeParts: string[] = []
+  // Now slice between matches and extract amounts + remarks from each block
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i]
+    const next = matches[i + 1]
+    const block = fullText.substring(cur.matchEnd, next ? next.startIdx : fullText.length)
 
-    for (const line of txnLines) {
-      const r = colText(line.items, colX.remarks - 8, colX.withdrawal - 4)
-      if (r) remarkParts.push(r)
+    // Parse date from cur.dateStr (e.g., "01/Apr/2026" or "01/Apr/20" + "26" joined)
+    const txnDate = parseDate(cur.dateStr) ||
+                    parseDate(cur.dateStr.replace(/(\d{2})\/(\w{3})\/(\d{2})(\d{2})/, '$1/$2/$3$4'))
 
-      const dr = colText(line.items, colX.withdrawal - 4, colX.deposit - 4)
-      if (dr) drTokens.push(dr)
-
-      const cr = colText(line.items, colX.deposit - 4, colX.balance - 4)
-      if (cr) crTokens.push(cr)
-
-      const bal = colText(line.items, colX.balance - 4, 700)
-      if (bal) balTokens.push(bal)
-
-      // Dates from valueDate and txnDate columns
-      const vd = colText(line.items, colX.valueDate - 4, colX.txnDate - 4)
-      if (vd && /\d/.test(vd)) dates.push(vd)
-      const td = colText(line.items, colX.txnDate - 4, colX.postedDate - 4)
-      if (td && /\d/.test(td)) dates.push(td)
-
-      const tid = colText(line.items, colX.tranId - 4, colX.valueDate - 4)
-      if (tid) tranIdParts.push(tid)
-
-      const chq = colText(line.items, colX.cheque - 4, colX.remarks - 4)
-      if (chq) chequeParts.push(chq)
+    // Find all amount patterns in the block.
+    // ICICI amounts: digits with commas + dot + 2 digits, e.g., "1,00,000.00" or "11.80"
+    // After PDF fragment join, an amount may have a space: "1,00,000. 00" or "1,26,335. 50"
+    // Regex: digits/commas, optional space, dot, optional space, 2 digits
+    const amountRe = /(?:\d{1,3}(?:,\d{2,3})*|\d+)\s*\.\s*\d{2}/g
+    const amounts: number[] = []
+    let am: RegExpExecArray | null
+    while ((am = amountRe.exec(block)) !== null) {
+      const cleaned = am[0].replace(/\s+/g, '')
+      const n = parseAmount(cleaned)
+      if (n > 0) amounts.push(n)
     }
 
-    // Reconstruct amounts: tokens like "1,26,335." + "50" → join and parse
-    const drStr  = joinAmountTokens(drTokens)
-    const crStr  = joinAmountTokens(crTokens)
-    const balStr = joinAmountTokens(balTokens)
+    if (amounts.length < 1) continue
 
-    const withdrawal = parseAmount(drStr)
-    const deposit    = parseAmount(crStr)
-    const balance    = parseAmount(balStr)
+    // The last amount in the block is the balance.
+    // If there are 2 amounts: one is the Dr OR Cr, the other is balance.
+    // If there are 3 amounts: shouldn't happen, but defensive.
+    // We need to determine whether the non-balance amount is Dr or Cr.
+    // ICICI PDF prints either Dr or Cr column for each row — the other is blank.
+    // So # amounts is usually 2: [txn_amount, balance].
+    // We use REMARKS heuristic: NEFT inbound credits from Sarvani Bio Fuels are Cr.
+    // But the most reliable is: the printed column. Since we lost column info in flat
+    // text, we use this rule: if remarks include "NEFT-CNRB" (Sarvani inward), it's a credit.
 
-    if (!withdrawal && !deposit) continue
-
-    const remarks = remarkParts.join(' ').replace(/\s+/g, ' ').trim()
-
-    // Find a valid date
-    let txnDate = ''
-    for (const d of dates) {
-      const parsed = parseDate(d.split(' ')[0])
-      if (parsed) { txnDate = parsed; break }
+    let txnAmount = 0
+    let balance = 0
+    if (amounts.length >= 2) {
+      txnAmount = amounts[0]
+      balance = amounts[amounts.length - 1]
+    } else {
+      txnAmount = amounts[0]
     }
+
+    // Remarks: everything in the block that isn't a date or amount.
+    // Strip dates and amounts from the block to get the remarks.
+    let remarks = block
+      .replace(/\d{1,2}\/\w{3}\/\d{2,4}/g, ' ')          // value/txn dates
+      .replace(/\d{1,2}-\w{3}-\d{4}/g, ' ')              // posted dates
+      .replace(/\d{1,2}:\d{2}:\d{2}\s*[AP]M/gi, ' ')     // times
+      .replace(/(?:\d{1,3}(?:,\d{2,3})*|\d+)\s*\.\s*\d{2}/g, ' ')  // amounts
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    // Determine Dr/Cr: NEFT-CNRBH inward credits, NEFT-RETURN, RTGS RETURN are credits
+    const remarksUpper = remarks.toUpperCase()
+    const isCredit =
+      /NEFT-?\s*CNRBH/.test(remarksUpper) ||           // Sarvani Bio Fuels NEFT in
+      /RTGS-?\s*CNRBR/.test(remarksUpper) ||           // Sarvani RTGS in
+      /NEFT-?\s*RETURN/.test(remarksUpper) ||          // returned NEFT credits back
+      /RTGS\s*RETURN/.test(remarksUpper) ||
+      /SARVANI BIO FUELS/.test(remarksUpper)
+
+    const withdrawal = isCredit ? 0 : txnAmount
+    const deposit    = isCredit ? txnAmount : 0
 
     rows.push({
-      _key: key++,
-      txnId: tranIdParts.join('').trim(),
+      _key: cur.si,
+      txnId: cur.tranId,
       valueDate: txnDate,
       txnDate,
-      chequeRef: chequeParts.join(' ').trim(),
-      remarks,
+      chequeRef: '',
+      remarks: remarks.substring(0, 300),
       withdrawal,
       deposit,
       balance,
@@ -219,14 +191,6 @@ function parseICICIStream(
   }
 
   return rows
-}
-
-// Join amount tokens that may be split (e.g., "1,26,335." + "50" → "1,26,335.50")
-function joinAmountTokens(tokens: string[]): string {
-  if (!tokens.length) return ''
-  const joined = tokens.join('')
-  // Remove spaces inside the number
-  return joined.replace(/\s/g, '')
 }
 
 function parseAmount(s: string): number {
