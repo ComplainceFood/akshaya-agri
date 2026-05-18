@@ -72,10 +72,73 @@ interface TxnRow {
   tranId: string
   txnDate: string      // YYYY-MM-DD
   remarks: string
+  paidTo: string       // extracted beneficiary name from remarks
+  accountRef: string   // account number or UPI VPA
   withdrawal: number   // Dr
   deposit: number      // Cr
   balance: number
   mode: string
+}
+
+// Parse the structured remarks string into paidTo and accountRef.
+// ICICI remarks format by mode:
+//   MMT/IMPS/<acctNo>/<ref>/<BeneficiaryName>/<IFSC>
+//   UPI/<txnRef>/<desc>/<VPA or Name>
+//   NEFT/<ref>/<acctNo>/<IFSC>/<extra>/<BeneficiaryName>
+//   RTGS/<ref>/<acctNo>/<IFSC>/<extra>/<BeneficiaryName>
+//   INF/NEFT/<ref>/<acctNo>/<IFSC>/<extra>/<BeneficiaryName>
+//   NEFT- CNRBH<ref>/<BeneficiaryName>  (inward)
+function extractBeneficiary(remarks: string): { paidTo: string; accountRef: string } {
+  // Normalise spaces inside tokens that got split by PDF (e.g. "UBIN0 800279" → "UBIN0800279")
+  const r = remarks.replace(/([A-Z0-9])\s+([0-9]{3,})/g, '$1$2').trim()
+  const parts = r.split('/')
+
+  const isIFSC = (s: string) => /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(s.trim())
+  const isDigits = (s: string) => /^\d{6,}$/.test(s.trim())
+
+  const mode = parts[0]?.toUpperCase() || ''
+
+  if (/^(MMT|IMPS)/.test(mode)) {
+    // MMT/IMPS / <acctNo> / <ref> / <name> / <IFSC>
+    const acct = parts[1]?.trim() || ''
+    // name is the last non-IFSC, non-digit part before IFSC
+    let name = ''
+    for (let i = parts.length - 1; i >= 2; i--) {
+      const p = parts[i].trim()
+      if (isIFSC(p) || isDigits(p)) continue
+      name = p; break
+    }
+    return { paidTo: name, accountRef: acct }
+  }
+
+  if (/^UPI/.test(mode)) {
+    // UPI / <txnRef> / <desc> / <VPA or name>
+    const last = parts[parts.length - 1]?.trim() || ''
+    const secondLast = parts.length >= 3 ? parts[parts.length - 2]?.trim() : ''
+    // prefer VPA (contains @) else last non-empty part
+    const name = last.includes('@') ? last : (last || secondLast)
+    const acct = parts[1]?.trim() || ''
+    return { paidTo: name, accountRef: acct }
+  }
+
+  if (/^(NEFT|RTGS|INF)/.test(mode)) {
+    // NEFT / <ref> / <acctNo> / <IFSC> / ... / <name>
+    // OR inward: NEFT- CNRBH<ref> / <name>
+    let name = ''
+    let acct = ''
+    for (let i = 1; i < parts.length; i++) {
+      const p = parts[i].trim()
+      if (isDigits(p)) { if (!acct) acct = p; continue }
+      if (isIFSC(p)) continue
+      if (p && !name) name = p  // first non-digit non-IFSC = name (inward)
+    }
+    // For outward NEFT/RTGS the name is usually the last slash segment
+    const lastPart = parts[parts.length - 1]?.trim()
+    if (lastPart && !isIFSC(lastPart) && !isDigits(lastPart)) name = lastPart
+    return { paidTo: name, accountRef: acct }
+  }
+
+  return { paidTo: '', accountRef: '' }
 }
 
 function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flatSample: string } {
@@ -191,11 +254,15 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
       // contains "-SARVANI" pattern
       (/NEFTCNRBH/i.test(remarks) && /SARVANI/i.test(remarks))
 
+    const { paidTo, accountRef } = extractBeneficiary(remarks)
+
     rows.push({
       si: cur.si,
       tranId: cur.tranId,
       txnDate,
       remarks: remarks.slice(0, 300),
+      paidTo,
+      accountRef,
       withdrawal: isCredit ? 0 : txnAmount,
       deposit: isCredit ? txnAmount : 0,
       balance,

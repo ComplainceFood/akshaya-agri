@@ -20,6 +20,8 @@ interface ParsedRow {
   tranId: string
   txnDate: string        // YYYY-MM-DD
   remarks: string
+  paidTo: string         // extracted beneficiary name
+  accountRef: string     // account number or UPI VPA
   withdrawal: number     // Dr
   deposit: number        // Cr
   balance: number
@@ -97,7 +99,7 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
       }
 
       const mapped: MappedRow[] = parsed.map((r, i) => {
-        const nameLower = extractName(r.remarks).toLowerCase()
+        const nameLower = (r.paidTo || r.remarks).toLowerCase()
         let supplierId: string | null = null
         let customerId: string | null = null
 
@@ -250,7 +252,8 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
       title: 'Remarks', key: 'remarks',
       render: (_: any, r: MappedRow) => (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{extractName(r.remarks)}</div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{r.paidTo || r.remarks.substring(0, 50)}</div>
+          {r.accountRef && <div style={{ fontSize: 10, color: '#1677ff' }}>{r.accountRef}</div>}
           <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{r.remarks}</div>
         </div>
       ),
@@ -288,7 +291,8 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
       title: 'Remarks', key: 'remarks',
       render: (_: any, r: MappedRow) => (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{extractName(r.remarks)}</div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{r.paidTo || r.remarks.substring(0, 50)}</div>
+          {r.accountRef && <div style={{ fontSize: 10, color: '#1677ff' }}>{r.accountRef}</div>}
           <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{r.remarks}</div>
         </div>
       ),
