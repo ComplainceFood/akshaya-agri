@@ -98,7 +98,12 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string } {
   let m: RegExpExecArray | null
   while ((m = boundaryRe.exec(flat)) !== null) {
     const si = parseInt(m[1], 10)
-    if (si === 1 || si === lastSi + 1) {
+    // Accept: first transaction (si=1), next in sequence, or resuming after a
+    // small gap (page breaks can re-emit header rows that consume SI numbers)
+    // Also accept if si > lastSi to handle any numbering gap gracefully
+    // Accept ascending SI numbers; allow gaps up to 20 for page-break re-headers
+    // but reject large jumps that are likely false matches in account numbers etc.
+    if (lastSi === 0 ? si === 1 : (si > lastSi && si <= lastSi + 20)) {
       boundaries.push({
         si,
         tranId: m[2],
