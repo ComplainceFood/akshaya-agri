@@ -45,26 +45,23 @@ function findAmounts(text: string): number[] {
   return results
 }
 
+const MONTHS: Record<string, string> = {
+  Jan:'01', January:'01', Feb:'02', February:'02', Mar:'03', March:'03',
+  Apr:'04', April:'04', May:'05', Jun:'06', June:'06',
+  Jul:'07', July:'07', Aug:'08', August:'08', Sep:'09', September:'09',
+  Oct:'10', October:'10', Nov:'11', November:'11', Dec:'12', December:'12',
+}
+
 function parseDate(s: string): string {
   if (!s) return ''
-  // "01/Apr/2026" or "01/Apr/20" + "26"
-  const m1 = s.match(/(\d{2})\/([A-Za-z]{3})\/(\d{4})/)
+  const m1 = s.match(/(\d{2})\/([A-Za-z]{3,9})\/(\d{4})/)
   if (m1) {
-    const months: Record<string, string> = {
-      Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
-      Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12',
-    }
-    const mon = months[m1[2]] || '01'
+    const mon = MONTHS[m1[2]] || MONTHS[m1[2].slice(0,3)] || '01'
     return `${m1[3]}-${mon}-${m1[1]}`
   }
-  // "01-Apr-2026"
-  const m2 = s.match(/(\d{2})-([A-Za-z]{3})-(\d{4})/)
+  const m2 = s.match(/(\d{2})-([A-Za-z]{3,9})-(\d{4})/)
   if (m2) {
-    const months: Record<string, string> = {
-      Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
-      Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12',
-    }
-    const mon = months[m2[2]] || '01'
+    const mon = MONTHS[m2[2]] || MONTHS[m2[2].slice(0,3)] || '01'
     return `${m2[3]}-${mon}-${m2[1]}`
   }
   return ''
@@ -87,7 +84,14 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
 
   // Find transaction boundaries: integer SI followed by S<digits> (possibly split by a space)
   // and a value date DD/Mon/YY or DD/Mon/YYYY
-  const boundaryRe = /\b(\d{1,3})\s+(S\d{3,}\s*\d*)\s+(\d{2}\/[A-Za-z]{3}\/\d{2,4})\s*/g
+  // Value date may be split across PDF fragments: "01/May/2" + "026" → normalise first
+  const flatFixed = flat.replace(/(\d{2}\/[A-Za-z]{3,9}\/\d{1,3})\s+(\d{1,3})\b/g, (_, a, b) => {
+    // Only glue if combined year looks like 2-4 digits (e.g. "2"+"026" → "2026")
+    const combined = a + b
+    if (/\/\d{2,4}$/.test(combined)) return combined
+    return _ // leave as-is
+  })
+  const boundaryRe = /\b(\d{1,3})\s+(S\d{3,}\s*\d*)\s+(\d{2}\/[A-Za-z]{3,9}\/\d{2,4})\s*/g
 
   const boundaries: Array<{
     si: number; tranId: string; dateStr: string; start: number; contentStart: number
@@ -95,7 +99,7 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
 
   let lastSi = 0
   let m: RegExpExecArray | null
-  while ((m = boundaryRe.exec(flat)) !== null) {
+  while ((m = boundaryRe.exec(flatFixed)) !== null) {
     const si = parseInt(m[1], 10)
     // Accept: first transaction (si=1), next in sequence, or resuming after a
     // small gap (page breaks can re-emit header rows that consume SI numbers)
@@ -120,10 +124,10 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     const cur = boundaries[i]
     const next = boundaries[i + 1]
     // Block: from after the boundary match up to the next boundary start
-    const block = flat.slice(cur.contentStart, next ? next.start : flat.length)
+    const block = flatFixed.slice(cur.contentStart, next ? next.start : flatFixed.length)
 
     // Date: try to get the transaction date (second date in the block, DD/Mon/YYYY)
-    const allDates = [...block.matchAll(/\d{2}\/[A-Za-z]{3}\/\d{4}/g)]
+    const allDates = [...block.matchAll(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g)]
     let txnDate = parseDate(cur.dateStr)
     // First date in block is usually Transaction Date (full year)
     if (allDates.length > 0) {
@@ -154,7 +158,7 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     // Fallback: strip all dates/times/amounts from whole block
     if (!remarks.trim()) {
       remarks = block
-        .replace(/\d{2}\/[A-Za-z]{3}\/\d{4}/g, '')
+        .replace(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/g, '')
         .replace(/\d{2}-[A-Za-z]{3}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
         .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '')
         .replace(/\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
