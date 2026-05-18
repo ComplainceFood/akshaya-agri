@@ -81,14 +81,13 @@ interface TxnRow {
   mode: string
 }
 
-function parseBankStatement(text: string): { rows: TxnRow[]; debug: string } {
+function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flatSample: string } {
   // Normalise: collapse whitespace sequences but keep newlines as spaces
   const flat = text.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ')
 
-  // Find transaction boundaries: integer SI followed by S<digits>
-  // Pattern: word boundary, 1-3 digit number, space(s), S followed by 4+ digits
-  // We only accept SI numbers in ascending sequence starting from 1
-  const boundaryRe = /\b(\d{1,3})\s+(S\d{4,})\s+(\d{2}\/[A-Za-z]{3}\/\d{2,4})\s*/g
+  // Find transaction boundaries: integer SI followed by S<digits> (possibly split by a space)
+  // and a value date DD/Mon/YY or DD/Mon/YYYY
+  const boundaryRe = /\b(\d{1,3})\s+(S\d{3,}\s*\d*)\s+(\d{2}\/[A-Za-z]{3}\/\d{2,4})\s*/g
 
   const boundaries: Array<{
     si: number; tranId: string; dateStr: string; start: number; contentStart: number
@@ -187,6 +186,7 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string } {
   return {
     rows,
     debug: flat.slice(0, 3000),
+    flatSample: flat.slice(3000, 6000),
   }
 }
 
@@ -212,9 +212,9 @@ Deno.serve(async (req) => {
     }
 
     const text = await extractPdfText(bytes)
-    const { rows, debug } = parseBankStatement(text)
+    const { rows, debug, flatSample } = parseBankStatement(text)
 
-    return json({ rows, count: rows.length, debug })
+    return json({ rows, count: rows.length, debug, flatSample })
   } catch (e: any) {
     return error(`Parse failed: ${e?.message ?? e}`, 500)
   }

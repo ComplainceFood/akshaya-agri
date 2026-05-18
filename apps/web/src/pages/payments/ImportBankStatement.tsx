@@ -77,7 +77,7 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
       })
 
       const parsed: ParsedRow[] = resp.data.rows || []
-      setDebugText(resp.data.debug || '')
+      setDebugText((resp.data.debug || '') + '\n\n--- chars 3000-6000 ---\n' + (resp.data.flatSample || ''))
 
       if (!parsed.length) {
         antMessage.error('No transactions found. See debug info.')
