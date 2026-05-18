@@ -156,6 +156,50 @@ export const useCreateSupplierPayment = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (data: any) => api.post('/payments/supplier', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['supplier-payments'] }); qc.invalidateQueries({ queryKey: ['supplier-ledger'] }); qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' }) } })
 }
+export const useUpdateSupplierPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: any) => api.put(`/payments/supplier/${id}`, data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-payments'] })
+      qc.invalidateQueries({ queryKey: ['supplier-ledger'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
+}
+export const useDeleteSupplierPayment = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/payments/supplier/${id}`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-payments'] })
+      qc.invalidateQueries({ queryKey: ['supplier-ledger'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
+}
+export const useBulkUpdateSupplierPayments = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, patch }: { ids: string[]; patch: any }) =>
+      api.post('/payments/supplier/bulk-update', { ids, patch }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-payments'] })
+      qc.invalidateQueries({ queryKey: ['supplier-ledger'] })
+    },
+  })
+}
+export const useBulkDeleteSupplierPayments = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => api.post('/payments/supplier/bulk-delete', { ids }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-payments'] })
+      qc.invalidateQueries({ queryKey: ['supplier-ledger'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
+}
 export const useSupplierLedger = (supplierId: string) =>
   useQuery({ queryKey: ['supplier-ledger', supplierId], queryFn: () => api.get(`/payments/supplier/${supplierId}/ledger`).then(r => r.data), enabled: !!supplierId })
 
@@ -164,6 +208,50 @@ export const useCustomerReceipts = (customerId?: string) =>
 export const useCreateCustomerReceipt = () => {
   const qc = useQueryClient()
   return useMutation({ mutationFn: (data: any) => api.post('/payments/customer', data).then(r => r.data), onSuccess: () => { qc.invalidateQueries({ queryKey: ['customer-receipts'] }); qc.invalidateQueries({ queryKey: ['customer-ledger'] }); qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' }) } })
+}
+export const useUpdateCustomerReceipt = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: any) => api.put(`/payments/customer/${id}`, data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-receipts'] })
+      qc.invalidateQueries({ queryKey: ['customer-ledger'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
+}
+export const useDeleteCustomerReceipt = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/payments/customer/${id}`).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-receipts'] })
+      qc.invalidateQueries({ queryKey: ['customer-ledger'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
+}
+export const useBulkUpdateCustomerReceipts = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, patch }: { ids: string[]; patch: any }) =>
+      api.post('/payments/customer/bulk-update', { ids, patch }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-receipts'] })
+      qc.invalidateQueries({ queryKey: ['customer-ledger'] })
+    },
+  })
+}
+export const useBulkDeleteCustomerReceipts = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => api.post('/payments/customer/bulk-delete', { ids }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-receipts'] })
+      qc.invalidateQueries({ queryKey: ['customer-ledger'] })
+      qc.invalidateQueries({ queryKey: ['reports', 'dashboard'], refetchType: 'none' })
+    },
+  })
 }
 export const useCustomerLedger = (customerId: string) =>
   useQuery({ queryKey: ['customer-ledger', customerId], queryFn: () => api.get(`/payments/customer/${customerId}/ledger`).then(r => r.data), enabled: !!customerId })

@@ -162,6 +162,58 @@ Deno.serve(async (req) => {
     return json(receipt, 201)
   }
 
+  // POST /payments/supplier/bulk-update  — { ids: string[], patch: Partial<SupplierPayment> }
+  if (req.method === 'POST' && isSupplier && thirdPart === 'bulk-update') {
+    const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
+    if (roleCheck) return roleCheck
+    const { ids, patch } = await req.json() as { ids: string[]; patch: Record<string, unknown> }
+    if (!Array.isArray(ids) || !ids.length) return error('No ids provided', 400)
+    if (!patch || !Object.keys(patch).length) return error('No patch provided', 400)
+    const { error: dbErr, count } = await db.from('SupplierPayment')
+      .update({ ...patch, updatedAt: new Date().toISOString() }, { count: 'exact' })
+      .in('id', ids)
+    if (dbErr) return error(dbErr.message)
+    return json({ updated: count ?? ids.length })
+  }
+
+  // POST /payments/supplier/bulk-delete  — { ids: string[] }
+  if (req.method === 'POST' && isSupplier && thirdPart === 'bulk-delete') {
+    const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
+    if (roleCheck) return roleCheck
+    const { ids } = await req.json() as { ids: string[] }
+    if (!Array.isArray(ids) || !ids.length) return error('No ids provided', 400)
+    await db.from('SupplierPaymentAllocation').delete().in('paymentId', ids)
+    const { error: dbErr, count } = await db.from('SupplierPayment').delete({ count: 'exact' }).in('id', ids)
+    if (dbErr) return error(dbErr.message)
+    return json({ deleted: count ?? ids.length })
+  }
+
+  // POST /payments/customer/bulk-update
+  if (req.method === 'POST' && !isSupplier && thirdPart === 'bulk-update') {
+    const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
+    if (roleCheck) return roleCheck
+    const { ids, patch } = await req.json() as { ids: string[]; patch: Record<string, unknown> }
+    if (!Array.isArray(ids) || !ids.length) return error('No ids provided', 400)
+    if (!patch || !Object.keys(patch).length) return error('No patch provided', 400)
+    const { error: dbErr, count } = await db.from('CustomerReceipt')
+      .update({ ...patch, updatedAt: new Date().toISOString() }, { count: 'exact' })
+      .in('id', ids)
+    if (dbErr) return error(dbErr.message)
+    return json({ updated: count ?? ids.length })
+  }
+
+  // POST /payments/customer/bulk-delete
+  if (req.method === 'POST' && !isSupplier && thirdPart === 'bulk-delete') {
+    const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
+    if (roleCheck) return roleCheck
+    const { ids } = await req.json() as { ids: string[] }
+    if (!Array.isArray(ids) || !ids.length) return error('No ids provided', 400)
+    await db.from('CustomerReceiptAllocation').delete().in('receiptId', ids)
+    const { error: dbErr, count } = await db.from('CustomerReceipt').delete({ count: 'exact' }).in('id', ids)
+    if (dbErr) return error(dbErr.message)
+    return json({ deleted: count ?? ids.length })
+  }
+
   // PUT /payments/supplier/:id
   if (req.method === 'PUT' && isSupplier && thirdPart && !isLedger) {
     const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
