@@ -32,10 +32,19 @@ function parseINR(s: string): number {
 
 // Find all amount-like tokens in a string and return them in order
 function findAmounts(text: string): number[] {
-  // Match Indian numbers: optional crores/lakhs with commas, decimal with 2 digits
-  // Also handle split: "1,00,000. 00" or "1,00,000.00"
-  const normalized = text.replace(/(\d)\.\s+(\d{2})\b/g, '$1.$2')
-  const re = /\b\d{1,3}(?:,\d{2,3})*\.\d{2}\b|\b\d+\.\d{2}\b/g
+  // PDF line-wrapping splits Indian amounts in two ways:
+  //   A) Decimal split:    "1,60,000. 00"   (dot + space + 2 digits)
+  //   B) Mid-digit split:  "1,60,00 00.00"  (last digit group wraps to next line)
+  //      Real value: 1,60,000.00 — the "0" before the dot landed on the next line
+  const normalized = text
+    // Fix A: glue "NNN. DD" → "NNN.DD"
+    .replace(/(\d)\.\s+(\d{2})\b/g, '$1.$2')
+    // Fix B: "digits/commas SPACE digits.dd" where first part ends mid-group
+    // e.g. "1,60,00 00.00" → "1,60,0000.00" then the regex below still parses it
+    // More precisely: a comma-number fragment followed by space + digits + ".dd"
+    .replace(/((?:\d{1,3},)+\d{0,3})\s+(\d{1,3}\.\d{2})\b/g, '$1$2')
+
+  const re = /\b\d{1,3}(?:,\d{2,3})*\d*\.\d{2}\b|\b\d+\.\d{2}\b/g
   const results: number[] = []
   let m: RegExpExecArray | null
   while ((m = re.exec(normalized)) !== null) {
