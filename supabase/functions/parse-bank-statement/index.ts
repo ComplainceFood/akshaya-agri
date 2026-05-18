@@ -102,7 +102,7 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     // Also accept if si > lastSi to handle any numbering gap gracefully
     // Accept ascending SI numbers; allow gaps up to 20 for page-break re-headers
     // but reject large jumps that are likely false matches in account numbers etc.
-    if (lastSi === 0 ? si === 1 : (si > lastSi && si <= lastSi + 20)) {
+    if (si > lastSi) {
       boundaries.push({
         si,
         tranId: m[2],
@@ -139,12 +139,28 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     const txnAmount = amounts[0]
     const balance = amounts[amounts.length - 1]
 
-    // Determine remarks: strip dates, amounts, times from block
-    let remarks = block
-      .replace(/\d{2}\/[A-Za-z]{3}\/\d{4}/g, '')
-      .replace(/\d{2}-[A-Za-z]{3}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
-      .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '')
-      .replace(/\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
+    // Remarks: the actual transaction description starts after the posted datetime
+    // Block layout: [TxnDate DD/Mon/YYYY] [PostedDate DD-Mon-YYYY HH:MM:SS AM/PM] [ChequeRef] [Remarks...] [Amount] [Balance]
+    // Extract text after the posted datetime to skip the cheque/ref field noise
+    let remarks = ''
+    const postedDtMatch = block.match(/\d{2}-[A-Za-z]{3}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/i)
+    if (postedDtMatch) {
+      const afterPosted = block.slice((postedDtMatch.index ?? 0) + postedDtMatch[0].length).trim()
+      // Skip cheque/ref: a hex string or alphanumeric ref before the first known mode keyword
+      // Remarks start at UPI/NEFT/RTGS/MMT/IMPS/INF or first slash-delimited token
+      const modeStart = afterPosted.search(/\b(UPI|NEFT|RTGS|MMT|IMPS|INF)\b/i)
+      remarks = modeStart >= 0 ? afterPosted.slice(modeStart) : afterPosted
+    }
+    // Fallback: strip all dates/times/amounts from whole block
+    if (!remarks.trim()) {
+      remarks = block
+        .replace(/\d{2}\/[A-Za-z]{3}\/\d{4}/g, '')
+        .replace(/\d{2}-[A-Za-z]{3}-\d{4}\s+\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
+        .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '')
+        .replace(/\d{2}:\d{2}:\d{2}\s*[AP]M/gi, '')
+    }
+    // Strip trailing amounts and whitespace
+    remarks = remarks
       .replace(/\b\d{1,3}(?:,\d{2,3})*\.\d{2}\b/g, '')
       .replace(/\s{2,}/g, ' ')
       .trim()
@@ -152,10 +168,10 @@ function parseBankStatement(text: string): { rows: TxnRow[]; debug: string; flat
     // Mode from remarks prefix
     const ru = remarks.toUpperCase()
     let mode = 'OTHER'
-    if (ru.startsWith('UPI')) mode = 'UPI'
-    else if (ru.startsWith('NEFT') || ru.startsWith('NEFTCNRB') || ru.includes('INF/NEFT') || ru.includes('INF/INFT')) mode = 'NEFT'
-    else if (ru.startsWith('RTGS') || ru.includes('RTGS/')) mode = 'RTGS'
-    else if (ru.startsWith('MMT') || ru.startsWith('IMPS')) mode = 'IMPS'
+    if (/^UPI/.test(ru)) mode = 'UPI'
+    else if (/^(NEFT|NEFTCNRB)/.test(ru) || /INF\/(NEFT|INFT)/.test(ru)) mode = 'NEFT'
+    else if (/^RTGS/.test(ru) || /RTGS\//.test(ru)) mode = 'RTGS'
+    else if (/^(MMT|IMPS)/.test(ru)) mode = 'IMPS'
 
     // Determine Dr vs Cr
     // Cr transactions visible in this DR-filtered statement:
