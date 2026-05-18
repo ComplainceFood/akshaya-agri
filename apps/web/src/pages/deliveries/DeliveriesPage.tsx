@@ -29,32 +29,26 @@ function calcDerived(r: any) {
   const mc = Number(r.moisturePct ?? 0)
   const mcDeduction = grossSaleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * grossSaleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
-  // Cess base uses cessRate (daily sale rate for the date); fall back to saleRate.
-  // balanceCess captures the entire cess effect on the deal:
-  //   cessApplicable=Yes → cessOnSale − cessPaid (deduct from supplier, refund if overpaid)
-  //   cessApplicable=No  → −cessPaid (refund whatever the supplier paid)
+  // Two separate cess terms, both deducted symmetrically from saleValue and netPayable:
+  //   cessOnSale  = 1% × adjustedWeight × COALESCE(cessRate, saleRate)  (only when commodity has cess)
+  //   balanceCess = −cessPaid  (always; refund of any supplier-paid cess)
   const cessRateVal = r.cessRate ? Number(r.cessRate) : (r.saleRate ? Number(r.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
-  // cessApplicable now lives on the Commodity; default true if commodity not yet hydrated.
   const cessApplicable = r.commodity?.cessApplicable ?? true
-  const balanceCess = cessBaseValue != null
-    ? (cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
+  const cessOnSale = cessBaseValue != null
+    ? (cessApplicable ? cessBaseValue * CESS_RATE : 0)
     : null
-  // Stored saleValue = net realisation (gross − MC − balanceCess). Cess is fully
-  // expressed via balanceCess; subtracting it mirrors the supplier-side adjustment.
-  const saleValue = grossSaleValue != null
-    ? grossSaleValue - mcDeduction - (balanceCess ?? 0)
+  const balanceCess = -cessPaid
+  const saleValue = grossSaleValue != null && cessOnSale != null
+    ? grossSaleValue - mcDeduction - cessOnSale - balanceCess
     : null
-  // Supplier payout: MC is passed through (same amount the customer deducted from us).
-  const netPayable = purchaseValue != null && balanceCess != null
-    ? purchaseValue - balanceCess - mcDeduction
+  const netPayable = purchaseValue != null && cessOnSale != null
+    ? purchaseValue - mcDeduction - cessOnSale - balanceCess
     : null
-  // Margin = what we received from customer − what we paid to supplier.
-  // saleValue is net of cess + MC (customer-side); netPayable is net of cess + MC (supplier-side).
   const grossMargin = saleValue != null && netPayable != null
     ? saleValue - netPayable
     : null
-  return { netWeight, adjustedWeight, purchaseValue, grossSaleValue, saleValue, grossMargin, mcDeduction, balanceCess, netPayable }
+  return { netWeight, adjustedWeight, purchaseValue, grossSaleValue, saleValue, grossMargin, mcDeduction, cessOnSale, balanceCess, netPayable }
 }
 
 function DeliveryDetail({ id }: { id: string }) {
@@ -92,15 +86,21 @@ function DeliveryDetail({ id }: { id: string }) {
         <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>(from commodity)</span>
       </Descriptions.Item>
       <Descriptions.Item label="Cess Paid (C)">{formatINR(d.cessPaid ?? 0)}</Descriptions.Item>
-      <Descriptions.Item label="Balance Cess (E)" span={2}>
-        <span style={{ color: calc.balanceCess != null && calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
-          {calc.balanceCess != null ? formatINR(calc.balanceCess) : '-'}
+      <Descriptions.Item label="Cess on Sale (E1)">
+        <span style={{ color: calc.cessOnSale ? '#cf1322' : undefined }}>
+          {calc.cessOnSale != null ? formatINR(calc.cessOnSale) : '-'}
           <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>
-            {(d.commodity?.cessApplicable ?? true) ? `(${CESS_RATE * 100}% of Sale − Cess Paid)` : '(−Cess Paid)'}
+            {(d.commodity?.cessApplicable ?? true) ? `(${CESS_RATE * 100}% of Sale)` : '(commodity not cessed)'}
           </span>
         </span>
       </Descriptions.Item>
-      <Descriptions.Item label="Net Payable (G = D−E−F)" span={2}>
+      <Descriptions.Item label="Balance Cess (E2)">
+        <span style={{ color: calc.balanceCess < 0 ? '#389e0d' : undefined }}>
+          {formatINR(calc.balanceCess)}
+          <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(−Cess Paid, refunded)</span>
+        </span>
+      </Descriptions.Item>
+      <Descriptions.Item label="Net Payable (G = D−F−E1−E2)" span={2}>
         <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '-'}</b>
       </Descriptions.Item>
       <Descriptions.Item label="Sale Rate">
@@ -110,7 +110,7 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Gross Sale (A×Rate)">{calc.grossSaleValue != null ? formatINR(calc.grossSaleValue) : '-'}</Descriptions.Item>
       <Descriptions.Item label="Sale Value (Net realised)" span={2}>
         <b>{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</b>
-        <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Gross Sale − MC Deduction − Balance Cess)</span>
+        <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Gross Sale − MC Deduction − Cess on Sale − Balance Cess)</span>
       </Descriptions.Item>
       <Descriptions.Item label="Margin (Sale Value − Net Payable)" span={2}>
         <b style={{ color: calc.grossMargin != null && calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{calc.grossMargin != null ? formatINR(calc.grossMargin) : '-'}</b>

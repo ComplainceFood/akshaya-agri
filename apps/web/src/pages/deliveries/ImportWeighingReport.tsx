@@ -50,23 +50,23 @@ interface ParsedRow {
   error?: string
 }
 
-// Formulas mirror Excel sheet exactly
-// D  = GrossAmt (to supplier)   = netWeight(Qt) × purchaseRate(₹/Qt)
-// D' = SaleGross (from Sarvani) = netWeight(Qt) × saleRate(₹/Qt)
-// F  = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)   ← sale price
-// E  = BalanceCess = IF(cessYES, D'×0.01 − CessPaid, −CessPaid)  ← sale price
-// G  = NetPayable = D − E − F
+// Formulas:
+// D   = GrossAmt   = netWeight(Qt) × purchaseRate(₹/Qt)
+// D'  = SaleGross  = netWeight(Qt) × saleRate(₹/Qt)
+// F   = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)
+// E1  = CessOnSale  = IF(commodity.cess, D' × 0.01, 0)
+// E2  = BalanceCess = −CessPaid          (always; refund of supplier-paid cess)
+// G   = NetPayable  = D − F − E1 − E2
 function calcRow(r: ParsedRow, cessApplicable: boolean) {
   const grossAmt = r.netWeight * (r.purchaseRate ?? 0)
   const saleGross = r.netWeight * (r.saleRate ?? 0)
   const mc = r.mcPct ?? 0
   const mcDeduction = saleGross > 0 && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleGross : 0
   const cessPaid = r.cessPaid ?? 0
-  const balanceCess = saleGross > 0
-    ? (cessApplicable ? saleGross * CESS_RATE - cessPaid : -cessPaid)
-    : 0
-  const netPayable = grossAmt - balanceCess - mcDeduction
-  return { grossAmt, saleGross, mcDeduction, balanceCess, netPayable }
+  const cessOnSale = saleGross > 0 && cessApplicable ? saleGross * CESS_RATE : 0
+  const balanceCess = -cessPaid
+  const netPayable = grossAmt - mcDeduction - cessOnSale - balanceCess
+  return { grossAmt, saleGross, mcDeduction, cessOnSale, balanceCess, netPayable }
 }
 
 interface Props {
@@ -298,13 +298,21 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       )
     },
     {
-      title: 'Bal Cess (E)', key: 'balCess', width: 105,
+      title: 'Cess on Sale (E1)', key: 'cessOnSale', width: 110,
+      render: (_: any, r: ParsedRow) => {
+        const { cessOnSale } = calcRow(r, cessForRow(r))
+        if (!r.purchaseRate) return <Text style={{ color: '#ccc', fontSize: 12 }}>-</Text>
+        return <Text style={{ fontSize: 12, color: cessOnSale ? '#cf1322' : '#aaa' }}>{cessOnSale ? fmtAmt(cessOnSale) : '-'}</Text>
+      }
+    },
+    {
+      title: 'Bal Cess (E2)', key: 'balCess', width: 100,
       render: (_: any, r: ParsedRow) => {
         const { balanceCess } = calcRow(r, cessForRow(r))
         if (!r.purchaseRate) return <Text style={{ color: '#ccc', fontSize: 12 }}>-</Text>
         return (
-          <Text style={{ fontSize: 12, color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
-            {balanceCess >= 0 ? `₹${balanceCess.toFixed(0)}` : `-₹${Math.abs(balanceCess).toFixed(0)}`}
+          <Text style={{ fontSize: 12, color: balanceCess < 0 ? '#389e0d' : '#aaa' }}>
+            {balanceCess === 0 ? '₹0' : balanceCess > 0 ? `₹${balanceCess.toFixed(0)}` : `-₹${Math.abs(balanceCess).toFixed(0)}`}
           </Text>
         )
       }
@@ -424,7 +432,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
             <Tag color="blue">{pendingCount} Pending</Tag>
             {savedCount > 0 && <Tag color="green">{savedCount} Saved</Tag>}
             {errorCount > 0 && <Tag color="red">{errorCount} Errors</Tag>}
-            <Text type="secondary" style={{ fontSize: 12 }}>Net Payable = Gross Amt − Balance Cess − MC Deduction</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>Net Payable = Gross Amt − MC Deduction − Cess on Sale − Balance Cess</Text>
           </Space>
 
           <Table

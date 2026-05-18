@@ -22,39 +22,35 @@ function calcDelivery(data: {
   const grossSaleValue = data.saleRate ? adjustedWeight * Number(data.saleRate) : null
 
   const mc = Number(data.moisturePct ?? 0)
-  // MC deduction is applied on the gross sale (customer deducts this from what they pay us,
-  // and the same deduction is passed through to the supplier on netPayable).
+  // MC deduction is applied on the gross sale; same amount is passed through to supplier on netPayable.
   const mcDeduction = grossSaleValue !== null && mc > MC_THRESHOLD_PCT
     ? ((mc - MC_THRESHOLD_PCT) / 100) * grossSaleValue
     : 0
   const cessPaid = Number(data.cessPaid ?? 0)
-  // Cess base uses cessRate (daily sale rate for the date); fall back to saleRate.
-  // balanceCess captures the entire cess effect on the deal:
-  //   cessApplicable=Yes → cessOnSale − cessPaid (we deduct from supplier, or refund if they overpaid)
-  //   cessApplicable=No  → −cessPaid (we refund whatever the supplier paid)
+  // Two separate cess terms (both deducted symmetrically from saleValue and netPayable):
+  //   cessOnSale  = 1% × adjustedWeight × COALESCE(cessRate, saleRate)  (when commodity has cess)
+  //                = 0                                                   (when commodity has no cess)
+  //   balanceCess = −cessPaid  (always; we refund any supplier-paid cess regardless of commodity flag)
   const cessRateVal = data.cessRate ? Number(data.cessRate) : (data.saleRate ? Number(data.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
-  const balanceCess = cessBaseValue !== null
-    ? (data.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
+  const cessOnSale = cessBaseValue !== null
+    ? (data.cessApplicable ? cessBaseValue * CESS_RATE : 0)
     : null
-  // Stored saleValue = net realisation (gross − MC − balanceCess). Drives margin, ledger, outstandings.
-  // Cess is fully expressed via balanceCess; subtracting it from saleValue mirrors what we either
-  // recover from / refund to the supplier on the same line.
-  // Invoices recompute gross independently for the customer-facing document.
-  const saleValue = grossSaleValue !== null
-    ? grossSaleValue - mcDeduction - (balanceCess ?? 0)
+  const balanceCess = -cessPaid
+  // Stored saleValue = net realisation (gross − MC − cessOnSale − balanceCess).
+  const saleValue = grossSaleValue !== null && cessOnSale !== null
+    ? grossSaleValue - mcDeduction - cessOnSale - balanceCess
     : null
-  // Supplier payout: MC is passed through (same amount the customer deducted from us).
-  const netPayable = purchaseValue !== null && balanceCess !== null
-    ? purchaseValue - balanceCess - mcDeduction
+  // Supplier payout: same three deductions applied to gross purchase.
+  const netPayable = purchaseValue !== null && cessOnSale !== null
+    ? purchaseValue - mcDeduction - cessOnSale - balanceCess
     : null
-  // Margin = what we received from customer − what we paid to supplier.
-  // saleValue is net of cess + MC (customer-side); netPayable is net of cess + MC (supplier-side).
+  // Margin simplifies to grossSale − purchaseValue since the three deductions cancel out.
   const grossMargin = saleValue !== null && netPayable !== null
     ? saleValue - netPayable
     : null
 
-  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, netPayable, balanceCess }
+  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, netPayable, balanceCess, cessOnSale }
 }
 
 async function fetchCessRate(db: any, deliveryDate: string | null | undefined, commodityId: string | null | undefined): Promise<number | null> {
