@@ -8,11 +8,11 @@ export function formatINR(amount: number | string | null | undefined): string {
   }).format(Number(amount))
 }
 
-export function formatQt(value: number | string | null | undefined): string {
+export function formatKg(value: number | string | null | undefined): string {
   if (value == null) return '-'
-  return `${Number(Number(value).toFixed(3)).toLocaleString('en-IN')} Qt`
+  return `${Number(Number(value).toFixed(1)).toLocaleString('en-IN')} Kg`
 }
 
-export function qtToMT(qt: number | string): string {
-  return `${(Number(qt) / 10).toFixed(3)} MT`
+export function kgToMT(kg: number | string): string {
+  return `${(Number(kg) / 1000).toFixed(3)} MT`
 }

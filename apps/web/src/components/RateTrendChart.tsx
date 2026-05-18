@@ -16,11 +16,11 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div style={{ background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '10px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', fontSize: 13 }}>
       <div style={{ fontWeight: 600, marginBottom: 6, color: '#333' }}>{label}</div>
-      {purchase != null && <div style={{ color: PURCHASE_COLOR }}>Purchase: ₹{Number(purchase).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</div>}
-      {sale != null && <div style={{ color: SALE_COLOR }}>Sale: ₹{Number(sale).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</div>}
+      {purchase != null && <div style={{ color: PURCHASE_COLOR }}>Purchase: ₹{Number(purchase).toLocaleString('en-IN', { maximumFractionDigits: 4 })}/Kg</div>}
+      {sale != null && <div style={{ color: SALE_COLOR }}>Sale: ₹{Number(sale).toLocaleString('en-IN', { maximumFractionDigits: 4 })}/Kg</div>}
       {margin != null && (
         <div style={{ color: margin >= 0 ? MARGIN_COLOR : '#ff4d4f', fontWeight: 600, marginTop: 4, borderTop: '1px solid #f0f0f0', paddingTop: 4 }}>
-          Margin: {margin >= 0 ? '+' : ''}₹{Number(margin).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt
+          Margin: {margin >= 0 ? '+' : ''}₹{Number(margin).toLocaleString('en-IN', { maximumFractionDigits: 4 })}/Kg
         </div>
       )}
     </div>
@@ -99,14 +99,14 @@ export default function RateTrendChart() {
         <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           {stats.latest != null && (
             <Tag color={stats.latest >= 0 ? 'green' : 'red'} style={{ fontSize: 12, padding: '2px 10px' }}>
-              Latest Margin: {stats.latest >= 0 ? '+' : ''}₹{stats.latest.toFixed(2)}/Qt
+              Latest Margin: {stats.latest >= 0 ? '+' : ''}₹{stats.latest.toFixed(4)}/Kg
             </Tag>
           )}
           <Tag color="blue" style={{ fontSize: 12, padding: '2px 10px' }}>
-            Avg Margin: ₹{stats.avg.toFixed(2)}/Qt
+            Avg Margin: ₹{stats.avg.toFixed(4)}/Kg
           </Tag>
           <Tag color="orange" style={{ fontSize: 12, padding: '2px 10px' }}>
-            Range: ₹{stats.min.toFixed(2)} – ₹{stats.max.toFixed(2)}/Qt
+            Range: ₹{stats.min.toFixed(4)} – ₹{stats.max.toFixed(4)}/Kg
           </Tag>
         </div>
       )}

@@ -66,9 +66,9 @@ export default function PurchaseRatesPage() {
     { title: 'Date', dataIndex: 'rateDate', key: 'date', render: (v: string) => dayjs(v).format('DD/MM/YYYY'), sorter: (a: any, b: any) => a.rateDate.localeCompare(b.rateDate), defaultSortOrder: 'descend' as const },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity' },
     {
-      title: 'Purchase Rate (₹/Qt)', key: 'rate', width: 180,
+      title: 'Purchase Rate (₹/Kg)', key: 'rate', width: 180,
       render: (_: any, r: any) => (
-        <InlineNum value={Number(r.ratePerQuintal)} step={0.5} decimals={2} prefix="₹"
+        <InlineNum value={Number(r.ratePerQuintal)} step={0.01} decimals={4} prefix="₹"
           onSave={v => patch(r.id, { ratePerQuintal: v })} />
       ),
     },
@@ -118,8 +118,8 @@ export default function PurchaseRatesPage() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item label="Rate (₹/Quintal)" name="ratePerQuintal" rules={[{ required: true }]}>
-            <InputNumber min={0} style={{ width: '100%' }} step={0.5} precision={2} />
+          <Form.Item label="Rate (₹/Kg)" name="ratePerQuintal" rules={[{ required: true }]}>
+            <InputNumber min={0} style={{ width: '100%' }} step={0.01} precision={4} />
           </Form.Item>
           <Form.Item label="Notes" name="notes"><Input.TextArea rows={2} /></Form.Item>
         </Form>

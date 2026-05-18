@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../api/client'
 import { printInvoice, generatePdfBase64 } from './InvoicePrint'
 import { useCustomers, useCommodities } from '../../api/hooks'
-import { formatINR, formatQt } from '../../utils/format'
+import { formatINR, formatKg } from '../../utils/format'
 import dayjs from 'dayjs'
 
 const { RangePicker } = DatePicker
@@ -95,8 +95,8 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
   const itemColumns = [
     { title: 'Slip / LR No.', dataIndex: 'lrNumber', key: 'lr', render: (v: string) => v || '-' },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vh' },
-    { title: 'Weight (Qt)', dataIndex: 'weight', key: 'wt', align: 'right' as const, render: formatQt },
-    { title: 'Rate (₹/Qt)', dataIndex: 'saleRate', key: 'sr', align: 'right' as const, render: (v: number) => v ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '-' },
+    { title: 'Weight (Kg)', dataIndex: 'weight', key: 'wt', align: 'right' as const, render: formatKg },
+    { title: 'Rate (₹/Kg)', dataIndex: 'saleRate', key: 'sr', align: 'right' as const, render: (v: number) => v ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 })}` : '-' },
     { title: 'Amount', dataIndex: 'amount', key: 'amt', align: 'right' as const, render: (v: number) => <b>{formatINR(v)}</b> },
   ]
 
@@ -166,7 +166,7 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
             summary={() => (
               <Table.Summary.Row style={{ fontWeight: 700, background: '#f9f9f9' }}>
                 <Table.Summary.Cell index={0} colSpan={2}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={2} align="right">{formatQt(inv.totalWeight)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align="right">{formatKg(inv.totalWeight)}</Table.Summary.Cell>
                 <Table.Summary.Cell index={3} />
                 <Table.Summary.Cell index={4} align="right"><span style={{ color: '#1677ff', fontSize: 15 }}>{formatINR(inv.totalAmount)}</span></Table.Summary.Cell>
               </Table.Summary.Row>
@@ -291,10 +291,10 @@ function InvoiceEditModal({ invoice, onClose }: { invoice: any | null; onClose: 
                     render: (_, f) => <Form.Item name={[f.name, 'vehicleNumber']} style={{ margin: 0 }}><Input placeholder="Vehicle" /></Form.Item>
                   },
                   {
-                    title: 'Weight (Qt)', width: 100,
+                    title: 'Weight (Kg)', width: 100,
                     render: (_, f) => (
                       <Form.Item name={[f.name, 'weight']} style={{ margin: 0 }} rules={[{ required: true, message: '' }]}>
-                        <InputNumber min={0} step={0.001} precision={3} style={{ width: '100%' }} placeholder="Qt"
+                        <InputNumber min={0} step={1} precision={1} style={{ width: '100%' }} placeholder="Kg"
                           onChange={() => {
                             const items = form.getFieldValue('items')
                             const item = items[f.name]
@@ -307,10 +307,10 @@ function InvoiceEditModal({ invoice, onClose }: { invoice: any | null; onClose: 
                     )
                   },
                   {
-                    title: 'Rate (₹/Qt)', width: 110,
+                    title: 'Rate (₹/Kg)', width: 110,
                     render: (_, f) => (
                       <Form.Item name={[f.name, 'saleRate']} style={{ margin: 0 }} rules={[{ required: true, message: '' }]}>
-                        <InputNumber min={0} step={0.5} precision={2} style={{ width: '100%' }} placeholder="Rate"
+                        <InputNumber min={0} step={0.01} precision={4} style={{ width: '100%' }} placeholder="Rate"
                           onChange={() => {
                             const items = form.getFieldValue('items')
                             const item = items[f.name]
@@ -396,7 +396,7 @@ function GenerateTab() {
     { title: 'Customer', key: 'customer', render: (_: any, r: any) => <b>{r.customer?.name}</b> },
     { title: 'Commodity', key: 'commodity', render: (_: any, r: any) => r.commodity?.name },
     { title: 'Trips', key: 'trips', render: (_: any, r: any) => <Badge count={r.deliveries.length} color="#1677ff" /> },
-    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, render: formatQt },
+    { title: 'Weight (Kg)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, render: formatKg },
     { title: 'Sale Rate', dataIndex: 'saleRate', key: 'sr', align: 'right' as const, render: (v: number) => v ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '-' },
     { title: 'Invoice Amount', dataIndex: 'totalSaleValue', key: 'amt', align: 'right' as const, render: (v: number) => <b style={{ color: '#1677ff' }}>{formatINR(v)}</b> },
     {
@@ -438,7 +438,7 @@ function GenerateTab() {
               <Card size="small"><Statistic title="Invoice Groups" value={selectedKeys.length} suffix={`/ ${previewData.length}`} /></Card>
             </Col>
             <Col xs={8}>
-              <Card size="small"><Statistic title="Total Weight" value={formatQt(totalWeight)} /></Card>
+              <Card size="small"><Statistic title="Total Weight" value={formatKg(totalWeight)} /></Card>
             </Col>
             <Col xs={8}>
               <Card size="small"><Statistic title="Total Amount" value={formatINR(totalAmount)} valueStyle={{ color: '#1677ff', fontSize: 16 }} /></Card>

@@ -109,8 +109,8 @@ function SalesTab({ data }: { data: any }) {
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'cust', ellipsis: true, width: 150 },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'com', width: 110, ellipsis: true },
     { title: 'HSN', dataIndex: ['commodity', 'hsnCode'], key: 'hsn', width: 80, ...nowrap },
-    { title: 'Wt (Qt)', dataIndex: 'adjustedWeight', key: 'wt', width: 90, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toFixed(2) : '-' },
-    { title: '₹/Qt', dataIndex: 'saleRate', key: 'rate', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN') : '-' },
+    { title: 'Wt (Kg)', dataIndex: 'adjustedWeight', key: 'wt', width: 90, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 }) : '-' },
+    { title: '₹/Kg', dataIndex: 'saleRate', key: 'rate', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-' },
     { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', width: 120, align: 'right' as const, ...nowrap, render: (v: number) => formatINR(v) },
     { title: 'Cess', dataIndex: 'cessPaid', key: 'cess', width: 90, align: 'right' as const, ...nowrap, render: (v: number) => v ? formatINR(v) : '-' },
   ]
@@ -119,14 +119,14 @@ function SalesTab({ data }: { data: any }) {
 
   function exportExcel() {
     const wsData = [
-      ['Date', 'LR/Slip', 'Customer', 'Commodity', 'HSN', 'Wt (Qt)', '₹/Qt', 'Sale Value', 'Cess'],
+      ['Date', 'LR/Slip', 'Customer', 'Commodity', 'HSN', 'Wt (Kg)', '₹/Kg', 'Sale Value', 'Cess'],
       ...rows.map((r: any) => [
         dayjs(r.deliveryDate).format('DD/MM/YYYY'),
         r.lrNumber || r.deliveryNumber,
         r.customer?.name,
         r.commodity?.name,
         r.commodity?.hsnCode,
-        Number(r.adjustedWeight ?? 0).toFixed(2),
+        Number(r.adjustedWeight ?? 0).toFixed(1),
         r.saleRate,
         Number(r.saleValue ?? 0),
         Number(r.cessPaid ?? 0),
@@ -147,15 +147,15 @@ function SalesTab({ data }: { data: any }) {
         <div class="summary-card"><div class="label">Total Cess</div><div class="value">${formatINR(totalCess)}</div></div>
       </div>
       <table>
-        <thead><tr><th>Date</th><th>LR/Slip</th><th>Customer</th><th>Commodity</th><th>HSN</th><th class="right">Wt(Qt)</th><th class="right">₹/Qt</th><th class="right">Sale Value</th><th class="right">Cess</th></tr></thead>
+        <thead><tr><th>Date</th><th>LR/Slip</th><th>Customer</th><th>Commodity</th><th>HSN</th><th class="right">Wt(Kg)</th><th class="right">₹/Kg</th><th class="right">Sale Value</th><th class="right">Cess</th></tr></thead>
         <tbody>${rows.map((r: any) => `<tr>
           <td>${dayjs(r.deliveryDate).format('DD/MM/YY')}</td>
           <td>${r.lrNumber || r.deliveryNumber || '-'}</td>
           <td>${r.customer?.name || '-'}</td>
           <td>${r.commodity?.name || '-'}</td>
           <td>${r.commodity?.hsnCode || '-'}</td>
-          <td class="right">${Number(r.adjustedWeight ?? 0).toFixed(2)}</td>
-          <td class="right">${r.saleRate ? Number(r.saleRate).toLocaleString('en-IN') : '-'}</td>
+          <td class="right">${Number(r.adjustedWeight ?? 0).toFixed(1)}</td>
+          <td class="right">${r.saleRate ? Number(r.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-'}</td>
           <td class="right">${formatINR(r.saleValue)}</td>
           <td class="right">${r.cessPaid ? formatINR(r.cessPaid) : '-'}</td>
         </tr>`).join('')}</tbody>
@@ -194,8 +194,8 @@ function PurchasesTab({ data }: { data: any }) {
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'sup', ellipsis: true, width: 150 },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'com', width: 110, ellipsis: true },
     { title: 'HSN', dataIndex: ['commodity', 'hsnCode'], key: 'hsn', width: 80, ...nowrap },
-    { title: 'Wt (Qt)', dataIndex: 'adjustedWeight', key: 'wt', width: 90, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toFixed(2) : '-' },
-    { title: '₹/Qt', dataIndex: 'purchaseRate', key: 'rate', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN') : '-' },
+    { title: 'Wt (Kg)', dataIndex: 'adjustedWeight', key: 'wt', width: 90, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 }) : '-' },
+    { title: '₹/Kg', dataIndex: 'purchaseRate', key: 'rate', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-' },
     { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', width: 130, align: 'right' as const, ...nowrap, render: (v: number) => formatINR(v) },
     { title: 'Net Payable', dataIndex: 'netPayable', key: 'np', width: 120, align: 'right' as const, ...nowrap, render: (v: number) => v ? formatINR(v) : '-' },
   ]
@@ -204,14 +204,14 @@ function PurchasesTab({ data }: { data: any }) {
 
   function exportExcel() {
     const wsData = [
-      ['Date', 'Delivery No.', 'Supplier', 'Commodity', 'HSN', 'Wt (Qt)', '₹/Qt', 'Purchase Value', 'Net Payable'],
+      ['Date', 'Delivery No.', 'Supplier', 'Commodity', 'HSN', 'Wt (Kg)', '₹/Kg', 'Purchase Value', 'Net Payable'],
       ...rows.map((r: any) => [
         dayjs(r.deliveryDate).format('DD/MM/YYYY'),
         r.deliveryNumber,
         r.supplier?.name,
         r.commodity?.name,
         r.commodity?.hsnCode,
-        Number(r.adjustedWeight ?? 0).toFixed(2),
+        Number(r.adjustedWeight ?? 0).toFixed(1),
         r.purchaseRate,
         Number(r.purchaseValue ?? 0),
         Number(r.netPayable ?? 0),
@@ -232,15 +232,15 @@ function PurchasesTab({ data }: { data: any }) {
         <div class="summary-card"><div class="label">Total Net Payable</div><div class="value">${formatINR(totalNetPayable)}</div></div>
       </div>
       <table>
-        <thead><tr><th>Date</th><th>Delivery No.</th><th>Supplier</th><th>Commodity</th><th>HSN</th><th class="right">Wt(Qt)</th><th class="right">₹/Qt</th><th class="right">Purchase Value</th><th class="right">Net Payable</th></tr></thead>
+        <thead><tr><th>Date</th><th>Delivery No.</th><th>Supplier</th><th>Commodity</th><th>HSN</th><th class="right">Wt(Kg)</th><th class="right">₹/Kg</th><th class="right">Purchase Value</th><th class="right">Net Payable</th></tr></thead>
         <tbody>${rows.map((r: any) => `<tr>
           <td>${dayjs(r.deliveryDate).format('DD/MM/YY')}</td>
           <td>${r.deliveryNumber || '-'}</td>
           <td>${r.supplier?.name || '-'}</td>
           <td>${r.commodity?.name || '-'}</td>
           <td>${r.commodity?.hsnCode || '-'}</td>
-          <td class="right">${Number(r.adjustedWeight ?? 0).toFixed(2)}</td>
-          <td class="right">${r.purchaseRate ? Number(r.purchaseRate).toLocaleString('en-IN') : '-'}</td>
+          <td class="right">${Number(r.adjustedWeight ?? 0).toFixed(1)}</td>
+          <td class="right">${r.purchaseRate ? Number(r.purchaseRate).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-'}</td>
           <td class="right">${formatINR(r.purchaseValue)}</td>
           <td class="right">${r.netPayable ? formatINR(r.netPayable) : '-'}</td>
         </tr>`).join('')}</tbody>

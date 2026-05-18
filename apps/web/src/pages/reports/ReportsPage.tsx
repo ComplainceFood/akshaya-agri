@@ -8,7 +8,7 @@ import {
   CarOutlined, DollarOutlined, BarChartOutlined, FilePdfOutlined,
 } from '@ant-design/icons'
 import { usePnL, useSupplierReport, useCustomerReport, usePaymentsReport, useStockReport, useSuppliers, useCustomers, useCommodities } from '../../api/hooks'
-import { formatINR, formatQt } from '../../utils/format'
+import { formatINR, formatKg } from '../../utils/format'
 import dayjs from 'dayjs'
 
 const { RangePicker } = DatePicker
@@ -126,9 +126,9 @@ function PnLTab() {
     { title: 'Supplier', dataIndex: ['supplier', 'name'], key: 'supplier', width: 150, ellipsis: true, ...nowrap },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', width: 150, ellipsis: true, ...nowrap },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity', width: 120, ellipsis: true, ...nowrap },
-    { title: 'Wt (Qt)', dataIndex: 'adjustedWeight', key: 'wt', width: 85, align: 'right' as const, ...nowrap, render: formatQt },
-    { title: 'Buy ₹/Qt', dataIndex: 'purchaseRate', key: 'br', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
-    { title: 'Sell ₹/Qt', dataIndex: 'saleRate', key: 'sr', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
+    { title: 'Wt (Kg)', dataIndex: 'adjustedWeight', key: 'wt', width: 85, align: 'right' as const, ...nowrap, render: formatKg },
+    { title: 'Buy ₹/Kg', dataIndex: 'purchaseRate', key: 'br', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-' },
+    { title: 'Sell ₹/Kg', dataIndex: 'saleRate', key: 'sr', width: 80, align: 'right' as const, ...nowrap, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-' },
     { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', width: 110, align: 'right' as const, ...nowrap, render: (v: number) => v ? formatINR(v) : '-' },
     {
       title: 'Margin', dataIndex: 'grossMargin', key: 'margin', width: 110, align: 'right' as const, ...nowrap,
@@ -143,7 +143,7 @@ function PnLTab() {
     const totalWeight = rows.reduce((s: number, r: any) => s + Number(r.adjustedWeight ?? 0), 0)
     return `
       <div class="summary-grid" style="grid-template-columns:repeat(4,1fr)">
-        <div class="summary-card"><div class="label">Total Weight</div><div class="value">${formatQt(pnl?.totalWeight ?? 0)}</div></div>
+        <div class="summary-card"><div class="label">Total Weight</div><div class="value">${formatKg(pnl?.totalWeight ?? 0)}</div></div>
         <div class="summary-card"><div class="label">Purchase Value</div><div class="value">${formatINR(pnl?.totalPurchase ?? 0)}</div></div>
         <div class="summary-card"><div class="label">Sale Value</div><div class="value green">${formatINR(pnl?.totalSale ?? 0)}</div></div>
         <div class="summary-card"><div class="label">Gross Margin</div><div class="value ${(pnl?.totalMargin ?? 0) >= 0 ? 'green' : 'red'}">${formatINR(pnl?.totalMargin ?? 0)}</div></div>
@@ -151,7 +151,7 @@ function PnLTab() {
       <table>
         <thead><tr>
           <th>Date</th><th>LR / Slip</th><th>Supplier</th><th>Customer</th><th>Commodity</th>
-          <th class="right">Wt (Qt)</th><th class="right">Buy ₹/Qt</th><th class="right">Sell ₹/Qt</th>
+          <th class="right">Wt (Kg)</th><th class="right">Buy ₹/Kg</th><th class="right">Sell ₹/Kg</th>
           <th class="right">Sale Value</th><th class="right">Margin</th>
         </tr></thead>
         <tbody>
@@ -161,16 +161,16 @@ function PnLTab() {
             <td>${r.supplier?.name || '-'}</td>
             <td>${r.customer?.name || '-'}</td>
             <td>${r.commodity?.name || '-'}</td>
-            <td class="right">${formatQt(r.adjustedWeight)}</td>
-            <td class="right">${r.purchaseRate ? Number(r.purchaseRate).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}</td>
-            <td class="right">${r.saleRate ? Number(r.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}</td>
+            <td class="right">${formatKg(r.adjustedWeight)}</td>
+            <td class="right">${r.purchaseRate ? Number(r.purchaseRate).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-'}</td>
+            <td class="right">${r.saleRate ? Number(r.saleRate).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-'}</td>
             <td class="right">${r.saleValue ? formatINR(r.saleValue) : '-'}</td>
             <td class="right ${(r.grossMargin ?? 0) >= 0 ? 'green' : 'red'}">${r.grossMargin != null ? formatINR(r.grossMargin) : '-'}</td>
           </tr>`).join('')}
         </tbody>
         <tfoot><tr>
           <td colspan="5"><b>Total (${rows.length} deliveries)</b></td>
-          <td class="right">${formatQt(totalWeight)}</td>
+          <td class="right">${formatKg(totalWeight)}</td>
           <td></td><td></td>
           <td class="right">${formatINR(pnl?.totalSale ?? 0)}</td>
           <td class="right ${(pnl?.totalMargin ?? 0) >= 0 ? 'green' : 'red'}">${formatINR(pnl?.totalMargin ?? 0)}</td>
@@ -197,7 +197,7 @@ function PnLTab() {
       </Space>
       {pnl && (
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-          <Col xs={12} sm={6}><SummaryCard title="Total Weight" value={formatQt(pnl.totalWeight ?? 0)} prefix={<CarOutlined />} /></Col>
+          <Col xs={12} sm={6}><SummaryCard title="Total Weight" value={formatKg(pnl.totalWeight ?? 0)} prefix={<CarOutlined />} /></Col>
           <Col xs={12} sm={6}><SummaryCard title="Purchase Value" value={formatINR(pnl.totalPurchase)} /></Col>
           <Col xs={12} sm={6}><SummaryCard title="Sale Value" value={formatINR(pnl.totalSale)} color="#2e7d32" /></Col>
           <Col xs={12} sm={6}>
@@ -244,7 +244,7 @@ function SupplierTab() {
   const summaryColumns = [
     { title: 'Supplier', dataIndex: 'name', key: 'name', ...nw, render: (v: string) => <b>{v}</b> },
     { title: 'Deliveries', dataIndex: 'deliveryCount', key: 'dc', align: 'right' as const, width: 80, ...nw },
-    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, ...nw, render: formatQt },
+    { title: 'Weight (Kg)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, ...nw, render: formatKg },
     { title: 'Purchase Value', dataIndex: 'totalPurchaseValue', key: 'pv', align: 'right' as const, ...nw, render: (v: number) => formatINR(v) },
     { title: 'Net Payable', dataIndex: 'totalNetPayable', key: 'np', align: 'right' as const, ...nw, render: (v: number) => formatINR(v) },
     { title: 'Paid', dataIndex: 'totalPaid', key: 'pd', align: 'right' as const, ...nw, render: (v: number) => <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> },
@@ -267,8 +267,8 @@ function SupplierTab() {
     { title: 'Slip No.', key: 'slip', width: 95, ...nw, render: (_: any, r: any) => r.lrNumber || r.deliveryNumber || '-' },
     { title: 'Vehicle', dataIndex: 'vehicleNumber', key: 'vehicle', width: 110, ...nw },
     { title: 'Commodity', dataIndex: ['commodity', 'name'], key: 'commodity', width: 130, ellipsis: true, ...nw },
-    { title: 'Net Weight (Qt)', dataIndex: 'adjustedWeight', key: 'wt', align: 'right' as const, width: 120, ...nw, render: formatQt },
-    { title: 'Rate (₹/Qt)', dataIndex: 'purchaseRate', key: 'rate', align: 'right' as const, width: 100, ...nw, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-' },
+    { title: 'Net Weight (Kg)', dataIndex: 'adjustedWeight', key: 'wt', align: 'right' as const, width: 120, ...nw, render: formatKg },
+    { title: 'Rate (₹/Kg)', dataIndex: 'purchaseRate', key: 'rate', align: 'right' as const, width: 100, ...nw, render: (v: number) => v ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-' },
     { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', align: 'right' as const, width: 130, ...nw, render: (v: number) => v != null ? formatINR(v) : '-' },
   ]
   const deliveryListTotalWt = deliveryList.reduce((s, r) => s + Number(r.adjustedWeight ?? 0), 0)
@@ -285,7 +285,7 @@ function SupplierTab() {
     </div>
     <table>
       <thead><tr>
-        <th>Supplier</th><th class="right">Deliveries</th><th class="right">Weight (Qt)</th>
+        <th>Supplier</th><th class="right">Deliveries</th><th class="right">Weight (Kg)</th>
         <th class="right">Purchase Value</th><th class="right">Net Payable</th>
         <th class="right">Paid</th><th class="right">Outstanding</th>
       </tr></thead>
@@ -293,7 +293,7 @@ function SupplierTab() {
         ${rows.map((r: any) => `<tr>
           <td><b>${r.name}</b></td>
           <td class="right">${r.deliveryCount}</td>
-          <td class="right">${formatQt(r.totalWeight)}</td>
+          <td class="right">${formatKg(r.totalWeight)}</td>
           <td class="right">${formatINR(r.totalPurchaseValue)}</td>
           <td class="right">${formatINR(r.totalNetPayable)}</td>
           <td class="right green">${formatINR(r.totalPaid)}</td>
@@ -303,7 +303,7 @@ function SupplierTab() {
       <tfoot><tr>
         <td><b>Total</b></td>
         <td class="right">${rows.reduce((s, r) => s + r.deliveryCount, 0)}</td>
-        <td class="right">${formatQt(rows.reduce((s, r) => s + r.totalWeight, 0))}</td>
+        <td class="right">${formatKg(rows.reduce((s, r) => s + r.totalWeight, 0))}</td>
         <td class="right">${formatINR(totalPurchase)}</td>
         <td class="right">${formatINR(rows.reduce((s, r) => s + r.totalNetPayable, 0))}</td>
         <td class="right green">${formatINR(totalPaid)}</td>
@@ -315,7 +315,7 @@ function SupplierTab() {
       <table>
         <thead><tr>
           <th>Date</th><th>Slip No.</th><th>Vehicle</th><th>Commodity</th>
-          <th class="right">Net Weight (Qt)</th><th class="right">Rate (₹/Qt)</th><th class="right">Purchase Value</th>
+          <th class="right">Net Weight (Kg)</th><th class="right">Rate (₹/Kg)</th><th class="right">Purchase Value</th>
         </tr></thead>
         <tbody>
           ${deliveryList.map((d: any) => `<tr>
@@ -323,14 +323,14 @@ function SupplierTab() {
             <td>${d.lrNumber || d.deliveryNumber || '-'}</td>
             <td>${d.vehicleNumber || '-'}</td>
             <td>${d.commodity?.name || '-'}</td>
-            <td class="right">${formatQt(d.adjustedWeight)}</td>
-            <td class="right">${d.purchaseRate ? Number(d.purchaseRate).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}</td>
+            <td class="right">${formatKg(d.adjustedWeight)}</td>
+            <td class="right">${d.purchaseRate ? Number(d.purchaseRate).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '-'}</td>
             <td class="right">${d.purchaseValue != null ? formatINR(d.purchaseValue) : '-'}</td>
           </tr>`).join('')}
         </tbody>
         <tfoot><tr>
           <td colspan="4"><b>Total</b></td>
-          <td class="right">${formatQt(deliveryListTotalWt)}</td>
+          <td class="right">${formatKg(deliveryListTotalWt)}</td>
           <td></td>
           <td class="right">${formatINR(deliveryListTotalPv)}</td>
         </tr></tfoot>
@@ -380,7 +380,7 @@ function SupplierTab() {
           <Table.Summary.Row style={{ fontWeight: 600, background: '#fafafa' }}>
             <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
             <Table.Summary.Cell index={1} align="right">{rows.reduce((s, r) => s + r.deliveryCount, 0)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={2} align="right">{formatQt(rows.reduce((s, r) => s + r.totalWeight, 0))}</Table.Summary.Cell>
+            <Table.Summary.Cell index={2} align="right">{formatKg(rows.reduce((s, r) => s + r.totalWeight, 0))}</Table.Summary.Cell>
             <Table.Summary.Cell index={3} align="right">{formatINR(totalPurchase)}</Table.Summary.Cell>
             <Table.Summary.Cell index={4} align="right">{formatINR(rows.reduce((s, r) => s + r.totalNetPayable, 0))}</Table.Summary.Cell>
             <Table.Summary.Cell index={5} align="right"><span style={{ color: '#2e7d32' }}>{formatINR(totalPaid)}</span></Table.Summary.Cell>
@@ -397,7 +397,7 @@ function SupplierTab() {
             summary={() => (
               <Table.Summary.Row style={{ fontWeight: 600, background: '#fafafa' }}>
                 <Table.Summary.Cell index={0} colSpan={4}>Total</Table.Summary.Cell>
-                <Table.Summary.Cell index={1} align="right">{formatQt(deliveryListTotalWt)}</Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">{formatKg(deliveryListTotalWt)}</Table.Summary.Cell>
                 <Table.Summary.Cell index={2} />
                 <Table.Summary.Cell index={3} align="right">{formatINR(deliveryListTotalPv)}</Table.Summary.Cell>
               </Table.Summary.Row>
@@ -439,7 +439,7 @@ function CustomerTab() {
   const summaryColumns = [
     { title: 'Customer', dataIndex: 'name', key: 'name', ...nw, render: (v: string) => <b>{v}</b> },
     { title: 'Deliveries', dataIndex: 'deliveryCount', key: 'dc', align: 'right' as const, width: 80, ...nw },
-    { title: 'Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, ...nw, render: formatQt },
+    { title: 'Weight (Kg)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, width: 110, ...nw, render: formatKg },
     { title: 'Sale Value', dataIndex: 'totalSaleValue', key: 'sv', align: 'right' as const, ...nw, render: (v: number) => formatINR(v) },
     { title: 'Margin', dataIndex: 'totalMargin', key: 'mg', align: 'right' as const, ...nw, render: (v: number) => <span style={{ color: v >= 0 ? '#2e7d32' : '#cf1322' }}>{formatINR(v)}</span> },
     { title: 'Received', dataIndex: 'totalReceived', key: 'rc', align: 'right' as const, ...nw, render: (v: number) => <span style={{ color: '#2e7d32' }}>{formatINR(v)}</span> },
@@ -468,7 +468,7 @@ function CustomerTab() {
     </div>
     <table>
       <thead><tr>
-        <th>Customer</th><th class="right">Deliveries</th><th class="right">Weight (Qt)</th>
+        <th>Customer</th><th class="right">Deliveries</th><th class="right">Weight (Kg)</th>
         <th class="right">Sale Value</th><th class="right">Margin</th>
         <th class="right">Received</th><th class="right">Outstanding</th>
       </tr></thead>
@@ -476,7 +476,7 @@ function CustomerTab() {
         ${rows.map((r: any) => `<tr>
           <td><b>${r.name}</b></td>
           <td class="right">${r.deliveryCount}</td>
-          <td class="right">${formatQt(r.totalWeight)}</td>
+          <td class="right">${formatKg(r.totalWeight)}</td>
           <td class="right">${formatINR(r.totalSaleValue)}</td>
           <td class="right ${r.totalMargin >= 0 ? 'green' : 'red'}">${formatINR(r.totalMargin)}</td>
           <td class="right green">${formatINR(r.totalReceived)}</td>
@@ -486,7 +486,7 @@ function CustomerTab() {
       <tfoot><tr>
         <td><b>Total</b></td>
         <td class="right">${rows.reduce((s, r) => s + r.deliveryCount, 0)}</td>
-        <td class="right">${formatQt(rows.reduce((s, r) => s + r.totalWeight, 0))}</td>
+        <td class="right">${formatKg(rows.reduce((s, r) => s + r.totalWeight, 0))}</td>
         <td class="right">${formatINR(totalSale)}</td>
         <td class="right green">${formatINR(rows.reduce((s, r) => s + r.totalMargin, 0))}</td>
         <td class="right green">${formatINR(totalReceived)}</td>
@@ -538,7 +538,7 @@ function CustomerTab() {
           <Table.Summary.Row style={{ fontWeight: 600, background: '#fafafa' }}>
             <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
             <Table.Summary.Cell index={1} align="right">{rows.reduce((s, r) => s + r.deliveryCount, 0)}</Table.Summary.Cell>
-            <Table.Summary.Cell index={2} align="right">{formatQt(rows.reduce((s, r) => s + r.totalWeight, 0))}</Table.Summary.Cell>
+            <Table.Summary.Cell index={2} align="right">{formatKg(rows.reduce((s, r) => s + r.totalWeight, 0))}</Table.Summary.Cell>
             <Table.Summary.Cell index={3} align="right">{formatINR(totalSale)}</Table.Summary.Cell>
             <Table.Summary.Cell index={4} align="right"><span style={{ color: '#2e7d32' }}>{formatINR(rows.reduce((s, r) => s + r.totalMargin, 0))}</span></Table.Summary.Cell>
             <Table.Summary.Cell index={5} align="right"><span style={{ color: '#2e7d32' }}>{formatINR(totalReceived)}</span></Table.Summary.Cell>
@@ -715,7 +715,7 @@ function StockTab() {
 
   const columns = [
     { title: 'Commodity', dataIndex: 'name', key: 'name', render: (v: string) => <b>{v}</b> },
-    { title: 'Total Weight (Qt)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, render: formatQt },
+    { title: 'Total Weight (Kg)', dataIndex: 'totalWeight', key: 'wt', align: 'right' as const, render: formatKg },
     { title: 'Total Purchase', dataIndex: 'totalPurchase', key: 'tp', align: 'right' as const, render: (v: number) => formatINR(v) },
     { title: 'Total Sale', dataIndex: 'totalSale', key: 'ts', align: 'right' as const, render: (v: number) => v ? formatINR(v) : '-' },
     {
@@ -733,19 +733,19 @@ function StockTab() {
 
   const pdfContent = () => `
     <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="summary-card"><div class="label">Total Weight</div><div class="value">${formatQt(totalWeight)}</div></div>
+      <div class="summary-card"><div class="label">Total Weight</div><div class="value">${formatKg(totalWeight)}</div></div>
       <div class="summary-card"><div class="label">Total Purchase</div><div class="value">${formatINR(totalPurchase)}</div></div>
       <div class="summary-card"><div class="label">Total Sale</div><div class="value green">${formatINR(totalSale)}</div></div>
     </div>
     <table>
       <thead><tr>
-        <th>Commodity</th><th class="right">Total Weight (Qt)</th>
+        <th>Commodity</th><th class="right">Total Weight (Kg)</th>
         <th class="right">Total Purchase</th><th class="right">Total Sale</th><th class="right">Margin</th>
       </tr></thead>
       <tbody>
         ${stock.map((r: any) => { const m = r.totalSale - r.totalPurchase; return `<tr>
           <td><b>${r.name}</b></td>
-          <td class="right">${formatQt(r.totalWeight)}</td>
+          <td class="right">${formatKg(r.totalWeight)}</td>
           <td class="right">${formatINR(r.totalPurchase)}</td>
           <td class="right">${r.totalSale ? formatINR(r.totalSale) : '-'}</td>
           <td class="right ${r.totalSale ? (m >= 0 ? 'green' : 'red') : ''}">${r.totalSale ? formatINR(m) : '-'}</td>
@@ -753,7 +753,7 @@ function StockTab() {
       </tbody>
       <tfoot><tr>
         <td><b>Total</b></td>
-        <td class="right">${formatQt(totalWeight)}</td>
+        <td class="right">${formatKg(totalWeight)}</td>
         <td class="right">${formatINR(totalPurchase)}</td>
         <td class="right">${formatINR(totalSale)}</td>
         <td class="right ${(totalSale - totalPurchase) >= 0 ? 'green' : 'red'}">${formatINR(totalSale - totalPurchase)}</td>
@@ -774,7 +774,7 @@ function StockTab() {
         }}>Export PDF</Button>
       </Space>
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8}><SummaryCard title="Total Weight" value={formatQt(totalWeight)} prefix={<CarOutlined />} /></Col>
+        <Col xs={12} sm={8}><SummaryCard title="Total Weight" value={formatKg(totalWeight)} prefix={<CarOutlined />} /></Col>
         <Col xs={12} sm={8}><SummaryCard title="Total Purchase" value={formatINR(totalPurchase)} /></Col>
         <Col xs={12} sm={8}><SummaryCard title="Total Sale" value={formatINR(totalSale)} color="#2e7d32" /></Col>
       </Row>
@@ -782,7 +782,7 @@ function StockTab() {
         summary={stock.length > 1 ? () => (
           <Table.Summary.Row style={{ fontWeight: 600, background: '#fafafa' }}>
             <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
-            <Table.Summary.Cell index={1} align="right">{formatQt(totalWeight)}</Table.Summary.Cell>
+            <Table.Summary.Cell index={1} align="right">{formatKg(totalWeight)}</Table.Summary.Cell>
             <Table.Summary.Cell index={2} align="right">{formatINR(totalPurchase)}</Table.Summary.Cell>
             <Table.Summary.Cell index={3} align="right">{formatINR(totalSale)}</Table.Summary.Cell>
             <Table.Summary.Cell index={4} align="right">

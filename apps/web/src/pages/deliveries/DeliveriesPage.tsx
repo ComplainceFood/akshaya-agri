@@ -11,11 +11,8 @@ import {
   useSuppliers, useCustomers, useCommodities, useDailyRates, useDelivery, useInvoices
 } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
-import { MC_THRESHOLD_PCT, CESS_RATE, QT_TO_KG, KG_TO_QT } from '../../utils/constants'
+import { MC_THRESHOLD_PCT, CESS_RATE } from '../../utils/constants'
 import dayjs from 'dayjs'
-
-const qtToKg = (qt: number | null | undefined) => qt != null ? +(Number(qt) * QT_TO_KG).toFixed(1) : null
-const kgToQt = (kg: number | null | undefined) => kg != null ? +(Number(kg) * KG_TO_QT).toFixed(3) : null
 
 function calcDerived(r: any) {
   const gross = Number(r.grossWeight ?? 0)
@@ -70,11 +67,11 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Vehicle">{d.vehicleNumber}</Descriptions.Item>
       <Descriptions.Item label="Supplier">{d.supplier?.name || '-'}</Descriptions.Item>
       <Descriptions.Item label="Commodity">{d.commodity?.name || '-'}</Descriptions.Item>
-      <Descriptions.Item label="Gross Weight">{qtToKg(d.grossWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
-      <Descriptions.Item label="Tare Weight">{qtToKg(d.tareWeight)?.toLocaleString('en-IN')} Kg</Descriptions.Item>
-      <Descriptions.Item label="Net Weight (A)"><b>{qtToKg(calc.netWeight)?.toLocaleString('en-IN')} Kg</b></Descriptions.Item>
+      <Descriptions.Item label="Gross Weight">{Number(d.grossWeight ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 1 })} Kg</Descriptions.Item>
+      <Descriptions.Item label="Tare Weight">{Number(d.tareWeight ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 1 })} Kg</Descriptions.Item>
+      <Descriptions.Item label="Net Weight (A)"><b>{Number(calc.netWeight ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 1 })} Kg</b></Descriptions.Item>
       <Descriptions.Item label="Quality Deduction">{d.qualityDeductionPct ?? 0}%</Descriptions.Item>
-      <Descriptions.Item label="Purchase Rate (B)">₹{Number(d.purchaseRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt</Descriptions.Item>
+      <Descriptions.Item label="Purchase Rate (B)">₹{Number(d.purchaseRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })}/Kg</Descriptions.Item>
       <Descriptions.Item label="Gross Amt (D = A×B)"><b>{formatINR(calc.purchaseValue)}</b></Descriptions.Item>
       <Descriptions.Item label="MC Content %">{d.moisturePct ? `${d.moisturePct}%` : '-'}</Descriptions.Item>
       <Descriptions.Item label="MC Deduction (F)">
@@ -105,7 +102,7 @@ function DeliveryDetail({ id }: { id: string }) {
         <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '-'}</b>
       </Descriptions.Item>
       <Descriptions.Item label="Sale Rate">
-        {liveSaleRate != null ? `₹${Number(liveSaleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt` : '-'}
+        {liveSaleRate != null ? `₹${Number(liveSaleRate).toLocaleString('en-IN', { maximumFractionDigits: 4 })}/Kg` : '-'}
         {dailyRates?.saleRate == null && d.saleRate && <span style={{ color: '#faad14', fontSize: 11, marginLeft: 6 }}>(no daily rate set)</span>}
       </Descriptions.Item>
       <Descriptions.Item label="Gross Sale (A×Rate)">{calc.grossSaleValue != null ? formatINR(calc.grossSaleValue) : '-'}</Descriptions.Item>
@@ -271,7 +268,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
   function openEdit(r: any) {
     const merged = row(r)
     setEditing(merged)
-    form.setFieldsValue({ ...merged, deliveryDate: dayjs(merged.deliveryDate), grossWeight: qtToKg(merged.grossWeight), tareWeight: qtToKg(merged.tareWeight) })
+    form.setFieldsValue({ ...merged, deliveryDate: dayjs(merged.deliveryDate) })
     setRateDate(merged.deliveryDate ? dayjs(merged.deliveryDate).format('YYYY-MM-DD') : null)
     setRateCommodityId(merged.commodityId ?? null)
     setOpen(true)
@@ -279,7 +276,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
 
   async function onSave() {
     const values = await form.validateFields()
-    const payload = { ...values, deliveryDate: values.deliveryDate.format('YYYY-MM-DD'), grossWeight: kgToQt(values.grossWeight), tareWeight: kgToQt(values.tareWeight) }
+    const payload = { ...values, deliveryDate: values.deliveryDate.format('YYYY-MM-DD') }
     try {
       if (editing) {
         await update({ id: editing.id, ...payload })
@@ -358,14 +355,17 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     {
       title: 'Net Wt (Kg)', key: 'netWt', width: 100,
       sorter: (a: any, b: any) => (derivedMap.get(a.id)?.netWeight ?? 0) - (derivedMap.get(b.id)?.netWeight ?? 0),
-      render: (_: any, raw: any) => <b>{qtToKg(derivedMap.get(raw.id)?.netWeight)?.toLocaleString('en-IN') ?? '-'}</b>
+      render: (_: any, raw: any) => {
+        const v = derivedMap.get(raw.id)?.netWeight
+        return <b>{v != null ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 }) : '-'}</b>
+      }
     },
     {
-      title: 'Rate (₹/Qt)', key: 'rate', width: 105,
+      title: 'Rate (₹/Kg)', key: 'rate', width: 105,
       sorter: (a: any, b: any) => (Number(row(a).purchaseRate) || 0) - (Number(row(b).purchaseRate) || 0),
       render: (_: any, raw: any) => {
         const r = row(raw)
-        return <InlineNum value={r.purchaseRate} step={0.5} decimals={2} onSave={v => patch(r.id, { purchaseRate: v })} prefix="₹" />
+        return <InlineNum value={r.purchaseRate} step={0.01} decimals={4} onSave={v => patch(r.id, { purchaseRate: v })} prefix="₹" />
       }
     },
     {
@@ -537,11 +537,11 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
               <Select placeholder="Customer" style={{ width: 150 }} showSearch optionFilterProp="label" allowClear
                 options={customers.map((c: any) => ({ value: c.id, label: c.name }))} />
             </Form.Item>
-            <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 4 }}>
-              <InputNumber placeholder="Rate" min={0} step={0.5} style={{ width: 95 }} />
+            <Form.Item label="Rate (₹/Kg)" name="purchaseRate" style={{ marginBottom: 4 }}>
+              <InputNumber placeholder="Rate" min={0} step={0.01} style={{ width: 95 }} />
             </Form.Item>
-            <Form.Item label="Sale Rate" name="saleRate" style={{ marginBottom: 4 }}>
-              <InputNumber placeholder="Rate" min={0} step={0.5} style={{ width: 95 }} />
+            <Form.Item label="Sale Rate (₹/Kg)" name="saleRate" style={{ marginBottom: 4 }}>
+              <InputNumber placeholder="Rate" min={0} step={0.01} style={{ width: 95 }} />
             </Form.Item>
             <Form.Item label="MC %" name="moisturePct" style={{ marginBottom: 4 }}>
               <InputNumber placeholder="14.5" min={0} max={100} step={0.1} style={{ width: 80 }} />
@@ -609,8 +609,8 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
           </Row>
           <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Rates</Divider>
           <Row gutter={12}>
-            <Col span={12}><Form.Item label="Purchase Rate (₹/Qt)" name="purchaseRate"><InputNumber min={0} style={{ width: '100%' }} step={0.5} /></Form.Item></Col>
-            <Col span={12}><Form.Item label="Sale Rate (₹/Qt)" name="saleRate"><InputNumber min={0} style={{ width: '100%' }} step={0.5} /></Form.Item></Col>
+            <Col span={12}><Form.Item label="Purchase Rate (₹/Kg)" name="purchaseRate"><InputNumber min={0} style={{ width: '100%' }} step={0.01} /></Form.Item></Col>
+            <Col span={12}><Form.Item label="Sale Rate (₹/Kg)" name="saleRate"><InputNumber min={0} style={{ width: '100%' }} step={0.01} /></Form.Item></Col>
           </Row>
           <Divider orientation="left" orientationMargin={0} style={{ margin: '6px 0' }}>Quality & Cess</Divider>
           <Row gutter={12}>

@@ -8,11 +8,10 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { useDashboard, usePurchaseOrders, useSalesOrders, useCommodities } from '../../api/hooks'
-import { formatINR } from '../../utils/format'
-import { QT_TO_KG } from '../../utils/constants'
+import { formatINR, formatKg } from '../../utils/format'
 import dayjs from 'dayjs'
 
-const fmtKg = (qt: number) => `${(qt * QT_TO_KG).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Kg`
+const fmtKg = (kg: number) => formatKg(kg)
 const fmtCr = (v: number) => {
   if (Math.abs(v) >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`
   if (Math.abs(v) >= 100000) return `₹${(v / 100000).toFixed(1)}L`
@@ -67,14 +66,14 @@ function TodayRateCard({ commodities, purchaseOrders, salesOrders }: { commoditi
                   <Col span={12}>
                     <div className="rate-label">Buy</div>
                     <div className="rate-value" style={{ color: '#cf1322' }}>₹{Number(c.purchaseRate).toLocaleString('en-IN')}</div>
-                    <div style={{ fontSize: 10, color: '#bbb' }}>per Qt</div>
+                    <div style={{ fontSize: 10, color: '#bbb' }}>per Kg</div>
                   </Col>
                 )}
                 {c.saleRate != null && (
                   <Col span={12}>
                     <div className="rate-label">Sell</div>
                     <div className="rate-value" style={{ color: '#2e7d32' }}>₹{Number(c.saleRate).toLocaleString('en-IN')}</div>
-                    <div style={{ fontSize: 10, color: '#bbb' }}>per Qt</div>
+                    <div style={{ fontSize: 10, color: '#bbb' }}>per Kg</div>
                   </Col>
                 )}
               </Row>

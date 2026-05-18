@@ -94,12 +94,9 @@ function parseRows(text: string): any[] {
       outDate,
       vehicleNumber,
       product,
-      grossWeightKg: grossKg,
-      tareWeightKg: tareKg,
-      netWeightKg: netKg,
-      grossWeight: +(grossKg / 100).toFixed(3),
-      tareWeight: +(tareKg / 100).toFixed(3),
-      netWeight: +(netKg / 100).toFixed(3),
+      grossWeight: grossKg,
+      tareWeight: tareKg,
+      netWeight: netKg,
     })
   }
 

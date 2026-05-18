@@ -276,8 +276,8 @@ function buildEmailHtml({ inv, invoiceDate, totalAmount, dueDate }: { inv: any; 
     .filter(Boolean).join(', ')
 
   const itemRows = (inv.items ?? []).map((item: any, idx: number) => {
-    const weightMT = (Number(item.weight) / 10).toFixed(3)
-    const rateMT = (Number(item.saleRate) * 10).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+    const weightMT = (Number(item.weight) / 1000).toFixed(3)
+    const rateMT = (Number(item.saleRate) * 1000).toLocaleString('en-IN', { maximumFractionDigits: 2 })
     const amount = Number(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e8e8e8;color:#555;">${idx + 1}</td>

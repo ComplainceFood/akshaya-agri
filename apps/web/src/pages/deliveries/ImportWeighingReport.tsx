@@ -26,10 +26,7 @@ interface ParsedRow {
   outDate: string
   vehicleNumber: string
   product: string
-  grossWeightKg: number
-  tareWeightKg: number
-  netWeightKg: number
-  grossWeight: number  // quintals
+  grossWeight: number  // Kg
   tareWeight: number
   netWeight: number
   // user-filled
@@ -38,7 +35,7 @@ interface ParsedRow {
   customerId?: string
   salesOrderId?: string
   commodityId?: string
-  purchaseRate?: number   // ₹ per quintal
+  purchaseRate?: number   // ₹ per Kg
   saleRate?: number
   // cess (applicability now resolved from the selected commodity)
   cessPaid?: number       // ₹ paid so far
@@ -51,8 +48,8 @@ interface ParsedRow {
 }
 
 // Formulas:
-// D   = GrossAmt   = netWeight(Qt) × purchaseRate(₹/Qt)
-// D'  = SaleGross  = netWeight(Qt) × saleRate(₹/Qt)
+// D   = GrossAmt   = netWeight(Kg) × purchaseRate(₹/Kg)
+// D'  = SaleGross  = netWeight(Kg) × saleRate(₹/Kg)
 // F   = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)        (pass-through to supplier)
 // E1  = CessOnSale  = IF(commodity.cess, D' × 0.01, 0)        (customer-side only; comes out of margin)
 // E2  = BalanceCess = −CessPaid                                (always; refund of supplier-paid cess)
@@ -246,8 +243,8 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       )
     },
     {
-      title: 'Net Wt (Qt)', dataIndex: 'netWeight', width: 90,
-      render: (v: number) => <Text strong style={{ fontSize: 12 }}>{v?.toFixed(3)}</Text>
+      title: 'Net Wt (Kg)', dataIndex: 'netWeight', width: 90,
+      render: (v: number) => <Text strong style={{ fontSize: 12 }}>{v != null ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 }) : '-'}</Text>
     },
     {
       title: 'Supplier', key: 'supplier', width: 170,
@@ -275,9 +272,9 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       )
     },
     {
-      title: 'Rate (₹/Qt)', key: 'rate', width: 110,
+      title: 'Rate (₹/Kg)', key: 'rate', width: 110,
       render: (_: any, r: ParsedRow) => (
-        <InputNumber size="small" min={0} step={0.5} placeholder="Rate"
+        <InputNumber size="small" min={0} step={0.01} placeholder="Rate"
           value={r.purchaseRate} onChange={v => upd(r.key, 'purchaseRate', v ?? undefined)}
           style={{ width: '100%' }} />
       )
@@ -410,8 +407,8 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
                 <Select placeholder="Commodity" style={{ width: 160 }} showSearch optionFilterProp="label" allowClear
                   options={commodities.map((c: any) => ({ value: c.id, label: c.name }))} />
               </Form.Item>
-              <Form.Item label="Rate (₹/Qt)" name="purchaseRate" style={{ marginBottom: 6 }}>
-                <InputNumber placeholder="e.g. 1847" min={0} step={0.5} style={{ width: 100 }} />
+              <Form.Item label="Rate (₹/Kg)" name="purchaseRate" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="e.g. 18.47" min={0} step={0.01} style={{ width: 100 }} />
               </Form.Item>
               <Form.Item label="MC %" name="mcPct" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="e.g. 14.5" min={0} max={100} step={0.1} style={{ width: 85 }} />
@@ -419,8 +416,8 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
               <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="0" min={0} style={{ width: 90 }} />
               </Form.Item>
-              <Form.Item label="Sale Rate" name="saleRate" style={{ marginBottom: 6 }}>
-                <InputNumber placeholder="e.g. 1900" min={0} step={0.5} style={{ width: 100 }} />
+              <Form.Item label="Sale Rate (₹/Kg)" name="saleRate" style={{ marginBottom: 6 }}>
+                <InputNumber placeholder="e.g. 19.00" min={0} step={0.01} style={{ width: 100 }} />
               </Form.Item>
               <Form.Item style={{ marginBottom: 6 }}>
                 <Button type="primary" size="small" onClick={applyGlobal}>Apply to All</Button>

@@ -36,8 +36,8 @@ export function InvoicePrint({ inv }: InvoicePrintProps) {
   const invoiceDate = dayjs(inv?.invoiceDate)
   const dueDate = invoiceDate.add(7, 'day')
 
-  // Convert Qt to MT for display (1 MT = 10 Qt)
-  const totalWeightMT = Number(inv?.totalWeight ?? 0) / 10
+  // Convert Kg to MT for display (1 MT = 1000 Kg)
+  const totalWeightMT = Number(inv?.totalWeight ?? 0) / 1000
 
   const billToLines = [
     customer.name,
@@ -118,8 +118,8 @@ export function InvoicePrint({ inv }: InvoicePrintProps) {
         </thead>
         <tbody>
           {items.map((item: any, idx: number) => {
-            const weightMT = Number(item.weight) / 10
-            const rateMT = Number(item.saleRate) * 10
+            const weightMT = Number(item.weight) / 1000
+            const rateMT = Number(item.saleRate) * 1000
             const amount = Number(item.amount)
             return (
               <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
