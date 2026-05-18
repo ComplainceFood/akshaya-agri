@@ -154,50 +154,54 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
 
     const validMode = (m: string) => ['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(m) ? m : 'NEFT'
 
+    const toDebitRow = (r: MappedRow) => ({
+      supplierId: r.supplierId ?? null,
+      amount: r.withdrawal,
+      paymentMode: validMode(r.mode),
+      paymentDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
+      referenceNumber: r.tranId || '',
+      paidTo: r.paidTo || null,
+      accountRef: r.accountRef || null,
+      bankRef: r.tranId || null,
+      notes: r.remarks.substring(0, 200),
+    })
+
+    const toCreditRow = (r: MappedRow) => ({
+      customerId: r.customerId ?? null,
+      amount: r.deposit,
+      paymentMode: validMode(r.mode),
+      receiptDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
+      referenceNumber: r.tranId || '',
+      paidTo: r.paidTo || null,
+      accountRef: r.accountRef || null,
+      bankRef: r.tranId || null,
+      notes: r.remarks.substring(0, 200),
+    })
+
     setSaving(true)
-    let saved = 0, failed = 0
+    let saved = 0, duplicates = 0, failed = 0
 
-    for (const r of debits) {
-      try {
-        await createPayment({
-          supplierId: r.supplierId ?? null,
-          amount: r.withdrawal,
-          paymentMode: validMode(r.mode),
-          paymentDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
-          referenceNumber: r.tranId || '',
-          paidTo: r.paidTo || null,
-          accountRef: r.accountRef || null,
-          bankRef: r.tranId || null,
-          notes: r.remarks.substring(0, 200),
-        })
-        saved++
-      } catch { failed++ }
-    }
-
-    for (const r of credits) {
-      try {
-        await createReceipt({
-          customerId: r.customerId ?? null,
-          amount: r.deposit,
-          paymentMode: validMode(r.mode),
-          receiptDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
-          referenceNumber: r.tranId || '',
-          paidTo: r.paidTo || null,
-          accountRef: r.accountRef || null,
-          bankRef: r.tranId || null,
-          notes: r.remarks.substring(0, 200),
-        })
-        saved++
-      } catch { failed++ }
+    try {
+      const [debitRes, creditRes] = await Promise.all([
+        debits.length  ? api.post('/payments/supplier/bulk', { rows: debits.map(toDebitRow) })  : null,
+        credits.length ? api.post('/payments/customer/bulk', { rows: credits.map(toCreditRow) }) : null,
+      ])
+      saved     += (debitRes?.data?.saved  ?? 0) + (creditRes?.data?.saved  ?? 0)
+      duplicates += (debitRes?.data?.duplicates ?? 0) + (creditRes?.data?.duplicates ?? 0)
+    } catch (e: any) {
+      failed++
+      antMessage.error(`Save failed: ${e?.response?.data?.error ?? e?.message}`)
     }
 
     setSaving(false)
-    if (saved) antMessage.success(`${saved} transaction${saved > 1 ? 's' : ''} imported`)
-    if (failed) antMessage.error(`${failed} failed to save`)
-    setImportOpen(false)
-    setPreviewOpen(false)
-    setRows([])
-    onDone()
+    if (saved)      antMessage.success(`${saved} transaction${saved !== 1 ? 's' : ''} imported`)
+    if (duplicates) antMessage.warning(`${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped (already imported)`)
+    if (!failed) {
+      setImportOpen(false)
+      setPreviewOpen(false)
+      setRows([])
+      onDone()
+    }
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────────

@@ -61,6 +61,40 @@ Deno.serve(async (req) => {
     return json(data)
   }
 
+  // POST /payments/supplier/bulk  — import many at once, returns {saved, duplicates, errors}
+  if (req.method === 'POST' && isSupplier && thirdPart === 'bulk') {
+    const { rows: items } = await req.json() as { rows: any[] }
+    if (!Array.isArray(items) || !items.length) return error('No rows provided', 400)
+
+    // Check for existing tranIds to flag duplicates
+    const tranIds = items.map((r: any) => r.referenceNumber).filter(Boolean)
+    const { data: existing } = await db.from('SupplierPayment')
+      .select('referenceNumber').in('referenceNumber', tranIds)
+    const dupSet = new Set((existing || []).map((r: any) => r.referenceNumber))
+
+    const now = new Date().toISOString()
+    const toInsert: any[] = []
+    const duplicates: string[] = []
+
+    for (const item of items) {
+      if (item.referenceNumber && dupSet.has(item.referenceNumber)) {
+        duplicates.push(item.referenceNumber)
+        continue
+      }
+      const paymentNumber = await getNextNumber(db, 'SPAY')
+      toInsert.push({ ...item, id: crypto.randomUUID(), paymentNumber, createdAt: now, updatedAt: now })
+    }
+
+    let saved = 0, errors = 0
+    if (toInsert.length) {
+      const { error: dbErr } = await db.from('SupplierPayment').insert(toInsert)
+      if (dbErr) return error(dbErr.message)
+      saved = toInsert.length
+    }
+
+    return json({ saved, duplicates: duplicates.length, duplicateRefs: duplicates, errors }, 201)
+  }
+
   // POST /payments/supplier
   if (req.method === 'POST' && isSupplier && !thirdPart) {
     const body = await req.json()
@@ -76,6 +110,39 @@ Deno.serve(async (req) => {
       await db.from('SupplierPaymentAllocation').insert(allocations.map((a: any) => ({ ...a, id: crypto.randomUUID(), paymentId: payment.id })))
     }
     return json(payment, 201)
+  }
+
+  // POST /payments/customer/bulk
+  if (req.method === 'POST' && !isSupplier && thirdPart === 'bulk') {
+    const { rows: items } = await req.json() as { rows: any[] }
+    if (!Array.isArray(items) || !items.length) return error('No rows provided', 400)
+
+    const tranIds = items.map((r: any) => r.referenceNumber).filter(Boolean)
+    const { data: existing } = await db.from('CustomerReceipt')
+      .select('referenceNumber').in('referenceNumber', tranIds)
+    const dupSet = new Set((existing || []).map((r: any) => r.referenceNumber))
+
+    const now = new Date().toISOString()
+    const toInsert: any[] = []
+    const duplicates: string[] = []
+
+    for (const item of items) {
+      if (item.referenceNumber && dupSet.has(item.referenceNumber)) {
+        duplicates.push(item.referenceNumber)
+        continue
+      }
+      const receiptNumber = await getNextNumber(db, 'CREC')
+      toInsert.push({ ...item, id: crypto.randomUUID(), receiptNumber, createdAt: now, updatedAt: now })
+    }
+
+    let saved = 0, errors = 0
+    if (toInsert.length) {
+      const { error: dbErr } = await db.from('CustomerReceipt').insert(toInsert)
+      if (dbErr) return error(dbErr.message)
+      saved = toInsert.length
+    }
+
+    return json({ saved, duplicates: duplicates.length, duplicateRefs: duplicates, errors }, 201)
   }
 
   // POST /payments/customer
