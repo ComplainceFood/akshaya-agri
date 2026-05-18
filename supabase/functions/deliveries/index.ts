@@ -41,11 +41,12 @@ function calcDelivery(data: {
   const saleValue = grossSaleValue !== null && cessOnSale !== null
     ? grossSaleValue - mcDeduction - cessOnSale - balanceCess
     : null
-  // Supplier payout: same three deductions applied to gross purchase.
-  const netPayable = purchaseValue !== null && cessOnSale !== null
-    ? purchaseValue - mcDeduction - cessOnSale - balanceCess
+  // Supplier payout: MC is pass-through; balanceCess is the refund. cessOnSale (E1)
+  // is what the customer deducts from us and is NOT recovered from the supplier.
+  const netPayable = purchaseValue !== null
+    ? purchaseValue - mcDeduction - balanceCess
     : null
-  // Margin simplifies to grossSale − purchaseValue since the three deductions cancel out.
+  // Margin = saleValue − netPayable = (grossSale − grossPurchase) − cessOnSale.
   const grossMargin = saleValue !== null && netPayable !== null
     ? saleValue - netPayable
     : null

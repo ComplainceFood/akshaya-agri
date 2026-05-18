@@ -42,8 +42,9 @@ function calcDerived(r: any) {
   const saleValue = grossSaleValue != null && cessOnSale != null
     ? grossSaleValue - mcDeduction - cessOnSale - balanceCess
     : null
-  const netPayable = purchaseValue != null && cessOnSale != null
-    ? purchaseValue - mcDeduction - cessOnSale - balanceCess
+  // cessOnSale is the customer's deduction from us; it is NOT recovered from the supplier.
+  const netPayable = purchaseValue != null
+    ? purchaseValue - mcDeduction - balanceCess
     : null
   const grossMargin = saleValue != null && netPayable != null
     ? saleValue - netPayable
@@ -100,7 +101,7 @@ function DeliveryDetail({ id }: { id: string }) {
           <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(−Cess Paid, refunded)</span>
         </span>
       </Descriptions.Item>
-      <Descriptions.Item label="Net Payable (G = D−F−E1−E2)" span={2}>
+      <Descriptions.Item label="Net Payable (G = D−F−E2)" span={2}>
         <b style={{ color: '#1677ff', fontSize: 14 }}>{calc.netPayable != null ? formatINR(calc.netPayable) : '-'}</b>
       </Descriptions.Item>
       <Descriptions.Item label="Sale Rate">

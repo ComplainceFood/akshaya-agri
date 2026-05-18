@@ -53,10 +53,10 @@ interface ParsedRow {
 // Formulas:
 // D   = GrossAmt   = netWeight(Qt) × purchaseRate(₹/Qt)
 // D'  = SaleGross  = netWeight(Qt) × saleRate(₹/Qt)
-// F   = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)
-// E1  = CessOnSale  = IF(commodity.cess, D' × 0.01, 0)
-// E2  = BalanceCess = −CessPaid          (always; refund of supplier-paid cess)
-// G   = NetPayable  = D − F − E1 − E2
+// F   = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)        (pass-through to supplier)
+// E1  = CessOnSale  = IF(commodity.cess, D' × 0.01, 0)        (customer-side only; comes out of margin)
+// E2  = BalanceCess = −CessPaid                                (always; refund of supplier-paid cess)
+// G   = NetPayable  = D − F − E2                               (no E1; that would double-deduct)
 function calcRow(r: ParsedRow, cessApplicable: boolean) {
   const grossAmt = r.netWeight * (r.purchaseRate ?? 0)
   const saleGross = r.netWeight * (r.saleRate ?? 0)
@@ -65,7 +65,7 @@ function calcRow(r: ParsedRow, cessApplicable: boolean) {
   const cessPaid = r.cessPaid ?? 0
   const cessOnSale = saleGross > 0 && cessApplicable ? saleGross * CESS_RATE : 0
   const balanceCess = -cessPaid
-  const netPayable = grossAmt - mcDeduction - cessOnSale - balanceCess
+  const netPayable = grossAmt - mcDeduction - balanceCess
   return { grossAmt, saleGross, mcDeduction, cessOnSale, balanceCess, netPayable }
 }
 
@@ -432,7 +432,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
             <Tag color="blue">{pendingCount} Pending</Tag>
             {savedCount > 0 && <Tag color="green">{savedCount} Saved</Tag>}
             {errorCount > 0 && <Tag color="red">{errorCount} Errors</Tag>}
-            <Text type="secondary" style={{ fontSize: 12 }}>Net Payable = Gross Amt − MC Deduction − Cess on Sale − Balance Cess</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>Net Payable = Gross Amt − MC Deduction − Balance Cess  (Cess on Sale is customer-side only)</Text>
           </Space>
 
           <Table
