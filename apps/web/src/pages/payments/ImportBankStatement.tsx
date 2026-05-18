@@ -144,13 +144,15 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
   // ── Save ──────────────────────────────────────────────────────────────────────
   async function handleSave() {
     const toSave = rows.filter(r => r.selected)
-    const debits  = toSave.filter(r => r.withdrawal > 0 && r.supplierId)
-    const credits = toSave.filter(r => r.deposit > 0 && r.customerId)
+    const debits  = toSave.filter(r => r.withdrawal > 0)
+    const credits = toSave.filter(r => r.deposit > 0)
 
     if (!debits.length && !credits.length) {
-      antMessage.warning('Assign at least one supplier (for debits) or customer (for credits) before saving')
+      antMessage.warning('No transactions selected')
       return
     }
+
+    const validMode = (m: string) => ['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(m) ? m : 'NEFT'
 
     setSaving(true)
     let saved = 0, failed = 0
@@ -158,11 +160,14 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
     for (const r of debits) {
       try {
         await createPayment({
-          supplierId: r.supplierId,
+          supplierId: r.supplierId ?? null,
           amount: r.withdrawal,
-          paymentMode: (['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(r.mode) ? r.mode : 'NEFT'),
+          paymentMode: validMode(r.mode),
           paymentDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
           referenceNumber: r.tranId || '',
+          paidTo: r.paidTo || null,
+          accountRef: r.accountRef || null,
+          bankRef: r.tranId || null,
           notes: r.remarks.substring(0, 200),
         })
         saved++
@@ -172,11 +177,14 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
     for (const r of credits) {
       try {
         await createReceipt({
-          customerId: r.customerId,
+          customerId: r.customerId ?? null,
           amount: r.deposit,
-          paymentMode: (['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(r.mode) ? r.mode : 'NEFT'),
+          paymentMode: validMode(r.mode),
           receiptDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
           referenceNumber: r.tranId || '',
+          paidTo: r.paidTo || null,
+          accountRef: r.accountRef || null,
+          bankRef: r.tranId || null,
           notes: r.remarks.substring(0, 200),
         })
         saved++
@@ -184,7 +192,7 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
     }
 
     setSaving(false)
-    if (saved) antMessage.success(`${saved} transaction${saved > 1 ? 's' : ''} recorded`)
+    if (saved) antMessage.success(`${saved} transaction${saved > 1 ? 's' : ''} imported`)
     if (failed) antMessage.error(`${failed} failed to save`)
     setImportOpen(false)
     setPreviewOpen(false)
@@ -196,8 +204,8 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
   const debits  = rows.filter(r => r.withdrawal > 0)
   const credits = rows.filter(r => r.deposit > 0)
   const neither = rows.filter(r => !r.withdrawal && !r.deposit)
-  const selectedDebits   = debits.filter(r => r.selected && r.supplierId)
-  const selectedCredits  = credits.filter(r => r.selected && r.customerId)
+  const selectedDebits   = debits.filter(r => r.selected)
+  const selectedCredits  = credits.filter(r => r.selected)
 
   // ── PREVIEW TABLE (all rows, select what to import) ───────────────────────────
   const previewCols = [
@@ -391,19 +399,23 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
         footer={
           <Space style={{ justifyContent: 'space-between', width: '100%' }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {selectedDebits.filter(r => r.supplierId).length}/{selectedDebitRows.length} supplier payments ready
+              {selectedDebits.filter(r => r.supplierId).length}/{selectedDebitRows.length} debits mapped
               &nbsp;·&nbsp;
-              {selectedCredits.filter(r => r.customerId).length}/{selectedCreditRows.length} customer receipts ready
+              {selectedCredits.filter(r => r.customerId).length}/{selectedCreditRows.length} credits mapped
+              &nbsp;·&nbsp;
+              <span style={{ color: '#faad14' }}>
+                {selectedDebits.filter(r => !r.supplierId).length + selectedCredits.filter(r => !r.customerId).length} unmapped (will save for later)
+              </span>
             </Text>
             <Space>
               <Button onClick={() => { setImportOpen(false); setPreviewOpen(true) }}>← Back</Button>
               <Button
                 type="primary"
                 loading={saving}
-                disabled={!selectedDebits.some(r => r.supplierId) && !selectedCredits.some(r => r.customerId)}
+                disabled={!selectedDebits.length && !selectedCredits.length}
                 onClick={handleSave}
               >
-                Save {selectedDebits.filter(r=>r.supplierId).length + selectedCredits.filter(r=>r.customerId).length} Transactions
+                Save {selectedDebits.length + selectedCredits.length} Transactions
               </Button>
             </Space>
           </Space>
