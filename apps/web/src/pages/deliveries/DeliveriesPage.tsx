@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, DatePicker,
   Typography, Space, Popconfirm, message, Divider, Row, Col,
-  Descriptions, Switch, Tooltip, Tag, Alert, Tabs, Badge
+  Descriptions, Tooltip, Tag, Alert, Tabs, Badge
 } from 'antd'
 import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined, FilterOutlined, CheckSquareOutlined } from '@ant-design/icons'
 import ImportWeighingReport from './ImportWeighingReport'
@@ -30,15 +30,20 @@ function calcDerived(r: any) {
   const mcDeduction = grossSaleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * grossSaleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
   // Cess base uses cessRate (daily sale rate for the date); fall back to saleRate.
+  // balanceCess captures the entire cess effect on the deal:
+  //   cessApplicable=Yes → cessOnSale − cessPaid (deduct from supplier, refund if overpaid)
+  //   cessApplicable=No  → −cessPaid (refund whatever the supplier paid)
   const cessRateVal = r.cessRate ? Number(r.cessRate) : (r.saleRate ? Number(r.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
-  const cessAmount = cessBaseValue != null ? cessBaseValue * CESS_RATE : null
+  // cessApplicable now lives on the Commodity; default true if commodity not yet hydrated.
+  const cessApplicable = r.commodity?.cessApplicable ?? true
   const balanceCess = cessBaseValue != null
-    ? (r.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
+    ? (cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
     : null
-  // Stored saleValue = net realisation (gross − cess − MC). Customer pays this amount.
+  // Stored saleValue = net realisation (gross − MC − balanceCess). Cess is fully
+  // expressed via balanceCess; subtracting it mirrors the supplier-side adjustment.
   const saleValue = grossSaleValue != null
-    ? grossSaleValue - (cessAmount ?? 0) - mcDeduction
+    ? grossSaleValue - mcDeduction - (balanceCess ?? 0)
     : null
   // Supplier payout: MC is passed through (same amount the customer deducted from us).
   const netPayable = purchaseValue != null && balanceCess != null
@@ -82,13 +87,16 @@ function DeliveryDetail({ id }: { id: string }) {
           {calc.mcDeduction > 0 ? formatINR(calc.mcDeduction) : `₹0 (MC ≤ ${MC_THRESHOLD_PCT}%)`}
         </span>
       </Descriptions.Item>
-      <Descriptions.Item label="Cess Applicable">{d.cessApplicable ? 'Yes' : 'No'}</Descriptions.Item>
+      <Descriptions.Item label="Cess Applicable">
+        {(d.commodity?.cessApplicable ?? true) ? 'Yes' : 'No'}
+        <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>(from commodity)</span>
+      </Descriptions.Item>
       <Descriptions.Item label="Cess Paid (C)">{formatINR(d.cessPaid ?? 0)}</Descriptions.Item>
       <Descriptions.Item label="Balance Cess (E)" span={2}>
         <span style={{ color: calc.balanceCess != null && calc.balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
           {calc.balanceCess != null ? formatINR(calc.balanceCess) : '-'}
           <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>
-            {d.cessApplicable ? `(${CESS_RATE * 100}% of Sale − Cess Paid)` : '(−Cess Paid)'}
+            {(d.commodity?.cessApplicable ?? true) ? `(${CESS_RATE * 100}% of Sale − Cess Paid)` : '(−Cess Paid)'}
           </span>
         </span>
       </Descriptions.Item>
@@ -102,7 +110,7 @@ function DeliveryDetail({ id }: { id: string }) {
       <Descriptions.Item label="Gross Sale (A×Rate)">{calc.grossSaleValue != null ? formatINR(calc.grossSaleValue) : '-'}</Descriptions.Item>
       <Descriptions.Item label="Sale Value (Net realised)" span={2}>
         <b>{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</b>
-        <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Gross Sale − Cess − MC Deduction)</span>
+        <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Gross Sale − MC Deduction − Balance Cess)</span>
       </Descriptions.Item>
       <Descriptions.Item label="Margin (Sale Value − Net Payable)" span={2}>
         <b style={{ color: calc.grossMargin != null && calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{calc.grossMargin != null ? formatINR(calc.grossMargin) : '-'}</b>
@@ -262,7 +270,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
   function openEdit(r: any) {
     const merged = row(r)
     setEditing(merged)
-    form.setFieldsValue({ ...merged, deliveryDate: dayjs(merged.deliveryDate), grossWeight: qtToKg(merged.grossWeight), tareWeight: qtToKg(merged.tareWeight), cessApplicable: !!merged.cessApplicable })
+    form.setFieldsValue({ ...merged, deliveryDate: dayjs(merged.deliveryDate), grossWeight: qtToKg(merged.grossWeight), tareWeight: qtToKg(merged.tareWeight) })
     setRateDate(merged.deliveryDate ? dayjs(merged.deliveryDate).format('YYYY-MM-DD') : null)
     setRateCommodityId(merged.commodityId ?? null)
     setOpen(true)
@@ -307,7 +315,6 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
     if (vals.purchaseRate != null) fields.purchaseRate = vals.purchaseRate
     if (vals.saleRate != null) fields.saleRate = vals.saleRate
     if (vals.moisturePct != null) fields.moisturePct = vals.moisturePct
-    if (vals.cessApplicable != null) fields.cessApplicable = vals.cessApplicable
     if (vals.cessPaid != null) fields.cessPaid = vals.cessPaid
     if (Object.keys(fields).length === 0) { message.warning('No values to apply'); return }
     let ok = 0
@@ -377,13 +384,6 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
       render: (_: any, raw: any) => {
         const { mcDeduction } = derivedMap.get(raw.id) ?? { mcDeduction: 0 }
         return mcDeduction > 0 ? <span style={{ color: '#cf1322' }}>{formatINR(mcDeduction)}</span> : <span style={{ color: '#ccc' }}>-</span>
-      }
-    },
-    {
-      title: 'Cess', key: 'cess', width: 62,
-      render: (_: any, raw: any) => {
-        const r = row(raw)
-        return <Switch size="small" checked={!!r.cessApplicable} checkedChildren="Y" unCheckedChildren="N" onChange={v => patch(r.id, { cessApplicable: v })} />
       }
     },
     {
@@ -545,9 +545,6 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
             <Form.Item label="MC %" name="moisturePct" style={{ marginBottom: 4 }}>
               <InputNumber placeholder="14.5" min={0} max={100} step={0.1} style={{ width: 80 }} />
             </Form.Item>
-            <Form.Item label="Cess" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 4 }}>
-              <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
-            </Form.Item>
             <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 4 }}>
               <InputNumber placeholder="0" min={0} style={{ width: 85 }} />
             </Form.Item>
@@ -620,13 +617,8 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
             <Col span={8}><Form.Item label="Foreign Matter (%)" name="foreignMatterPct"><InputNumber min={0} max={100} style={{ width: '100%' }} step={0.1} /></Form.Item></Col>
           </Row>
           <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item label="Cess Applicable" name="cessApplicable" valuePropName="checked" initialValue={false}>
-                <Switch checkedChildren="Yes" unCheckedChildren="No" />
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item label="Cess Paid (₹)" name="cessPaid" extra={`Balance Cess = ${CESS_RATE * 100}% of Sale Value − Cess Paid (if Yes), or −Cess Paid (if No)`}>
+            <Col span={24}>
+              <Form.Item label="Cess Paid (₹)" name="cessPaid" extra={`Cess applicability is set on the commodity. Balance Cess = ${CESS_RATE * 100}% of Sale Value − Cess Paid (when commodity has cess), or −Cess Paid (when it does not).`}>
                 <InputNumber min={0} style={{ width: '100%' }} step={1} />
               </Form.Item>
             </Col>

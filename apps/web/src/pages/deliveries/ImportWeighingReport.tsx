@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Modal, Button, Upload, Table, Form, Select, InputNumber,
-  Alert, Steps, Space, Typography, Tag, Tooltip, message, Spin, Switch
+  Alert, Steps, Space, Typography, Tag, Tooltip, message, Spin
 } from 'antd'
 import { InboxOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import api from '../../api/client'
@@ -40,8 +40,7 @@ interface ParsedRow {
   commodityId?: string
   purchaseRate?: number   // ₹ per quintal
   saleRate?: number
-  // cess
-  cessApplicable: boolean
+  // cess (applicability now resolved from the selected commodity)
   cessPaid?: number       // ₹ paid so far
   // balanceCess is fully calculated - not user-entered
   // moisture / quality
@@ -57,14 +56,14 @@ interface ParsedRow {
 // F  = MCDeduction = IF(MC%>14, (MC%-14)/100 × D', 0)   ← sale price
 // E  = BalanceCess = IF(cessYES, D'×0.01 − CessPaid, −CessPaid)  ← sale price
 // G  = NetPayable = D − E − F
-function calcRow(r: ParsedRow) {
+function calcRow(r: ParsedRow, cessApplicable: boolean) {
   const grossAmt = r.netWeight * (r.purchaseRate ?? 0)
   const saleGross = r.netWeight * (r.saleRate ?? 0)
   const mc = r.mcPct ?? 0
   const mcDeduction = saleGross > 0 && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleGross : 0
   const cessPaid = r.cessPaid ?? 0
   const balanceCess = saleGross > 0
-    ? (r.cessApplicable ? saleGross * CESS_RATE - cessPaid : -cessPaid)
+    ? (cessApplicable ? saleGross * CESS_RATE - cessPaid : -cessPaid)
     : 0
   const netPayable = grossAmt - balanceCess - mcDeduction
   return { grossAmt, saleGross, mcDeduction, balanceCess, netPayable }
@@ -91,6 +90,13 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
   const { data: commodities = [] } = useCommodities()
   const { mutateAsync: createDelivery } = useCreateDelivery()
 
+  // Cess applicability is a property of the commodity; default to true if commodity not yet selected.
+  const cessForRow = (r: ParsedRow): boolean => {
+    if (!r.commodityId) return true
+    const c = commodities.find((x: any) => x.id === r.commodityId)
+    return c?.cessApplicable ?? true
+  }
+
   function reset() {
     setStep(0); setRows([]); globalForm.resetFields()
   }
@@ -106,7 +112,6 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       const parsed: ParsedRow[] = (resp.data.rows || []).map((r: any, i: number) => ({
         ...r,
         key: `${i}-${r.challanNo}`,
-        cessApplicable: false,
         qualityDeductionPct: 0,
         status: 'ready',
       }))
@@ -146,7 +151,6 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       purchaseRate: vals.purchaseRate ?? r.purchaseRate,
       saleRate: vals.saleRate ?? r.saleRate,
       mcPct: vals.mcPct ?? r.mcPct,
-      cessApplicable: vals.cessApplicable !== undefined ? vals.cessApplicable : r.cessApplicable,
       cessPaid: vals.cessPaid ?? r.cessPaid,
       qualityDeductionPct: vals.qualityDeductionPct ?? r.qualityDeductionPct,
       status: 'ready',
@@ -179,8 +183,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
         saleRate: r.saleRate || null,
         moisturePct: r.mcPct || null,
         qualityDeductionPct: r.qualityDeductionPct || 0,
-        cessApplicable: r.cessApplicable,
-        cessPaid: r.cessApplicable ? (r.cessPaid ?? null) : null,
+        cessPaid: r.cessPaid ?? null,
         lrNumber: r.challanNo,
         notes: `Imported from Sarvani weighing report. Challan: ${r.challanNo}`,
         status: 'COMPLETED',
@@ -282,30 +285,22 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
     {
       title: 'Gross Amt', key: 'grossAmt', width: 100,
       render: (_: any, r: ParsedRow) => {
-        const { grossAmt } = calcRow(r)
+        const { grossAmt } = calcRow(r, cessForRow(r))
         return <Text style={{ fontSize: 12, color: grossAmt ? '#000' : '#aaa' }}>{grossAmt ? fmtAmt(grossAmt) : '-'}</Text>
       }
     },
     {
-      title: 'Cess', key: 'cess', width: 65,
-      render: (_: any, r: ParsedRow) => (
-        <Switch size="small" checked={r.cessApplicable}
-          onChange={v => upd(r.key, 'cessApplicable', v)}
-          checkedChildren="Y" unCheckedChildren="N" />
-      )
-    },
-    {
       title: 'Cess Paid', key: 'cessPaid', width: 100,
-      render: (_: any, r: ParsedRow) => r.cessApplicable ? (
+      render: (_: any, r: ParsedRow) => (
         <InputNumber size="small" min={0} placeholder="Paid"
           value={r.cessPaid} onChange={v => upd(r.key, 'cessPaid', v ?? undefined)}
           style={{ width: '100%' }} />
-      ) : <Text style={{ color: '#ccc', fontSize: 12 }}>N/A</Text>
+      )
     },
     {
       title: 'Bal Cess (E)', key: 'balCess', width: 105,
       render: (_: any, r: ParsedRow) => {
-        const { balanceCess } = calcRow(r)
+        const { balanceCess } = calcRow(r, cessForRow(r))
         if (!r.purchaseRate) return <Text style={{ color: '#ccc', fontSize: 12 }}>-</Text>
         return (
           <Text style={{ fontSize: 12, color: balanceCess > 0 ? '#cf1322' : '#389e0d' }}>
@@ -325,14 +320,14 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
     {
       title: 'MC Deduction', key: 'mcDed', width: 105,
       render: (_: any, r: ParsedRow) => {
-        const { mcDeduction } = calcRow(r)
+        const { mcDeduction } = calcRow(r, cessForRow(r))
         return <Text style={{ fontSize: 12, color: mcDeduction ? '#cf1322' : '#aaa' }}>{mcDeduction ? fmtAmt(mcDeduction) : '-'}</Text>
       }
     },
     {
       title: 'Net Payable', key: 'netPay', width: 105,
       render: (_: any, r: ParsedRow) => {
-        const { netPayable, grossAmt } = calcRow(r)
+        const { netPayable, grossAmt } = calcRow(r, cessForRow(r))
         return <Text strong style={{ fontSize: 12, color: grossAmt ? '#389e0d' : '#aaa' }}>{grossAmt ? fmtAmt(netPayable) : '-'}</Text>
       }
     },
@@ -412,9 +407,6 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
               </Form.Item>
               <Form.Item label="MC %" name="mcPct" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="e.g. 14.5" min={0} max={100} step={0.1} style={{ width: 85 }} />
-              </Form.Item>
-              <Form.Item label="Cess" name="cessApplicable" valuePropName="checked" style={{ marginBottom: 6 }}>
-                <Switch size="small" checkedChildren="Y" unCheckedChildren="N" />
               </Form.Item>
               <Form.Item label="Cess Paid" name="cessPaid" style={{ marginBottom: 6 }}>
                 <InputNumber placeholder="0" min={0} style={{ width: 90 }} />

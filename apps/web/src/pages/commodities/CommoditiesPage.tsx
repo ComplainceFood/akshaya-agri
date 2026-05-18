@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, Typography, message, Tag, Space, Popconfirm } from 'antd'
+import { Table, Button, Modal, Form, Input, Typography, message, Tag, Space, Popconfirm, Switch } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useCommodities, useCreateCommodity, useUpdateCommodity, useDeleteCommodity } from '../../api/hooks'
 
@@ -24,10 +24,21 @@ export default function CommoditiesPage() {
     } catch { message.error('Error saving') }
   }
 
+  async function toggleCess(r: any, checked: boolean) {
+    try { await update({ id: r.id, cessApplicable: checked }) }
+    catch { message.error('Could not update cess applicability') }
+  }
+
   const columns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'HSN Code', dataIndex: 'hsnCode', key: 'hsn', render: (v: string) => v ? <code>{v}</code> : '-' },
     { title: 'Description', dataIndex: 'description', key: 'desc', render: (v: string) => v || '-' },
+    {
+      title: 'Cess (1%)', dataIndex: 'cessApplicable', key: 'cess', width: 110,
+      render: (v: boolean, r: any) => (
+        <Switch size="small" checked={v !== false} onChange={(c) => toggleCess(r, c)} checkedChildren="Yes" unCheckedChildren="No" />
+      ),
+    },
     { title: 'Status', dataIndex: 'isActive', key: 'status', render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? 'Active' : 'Inactive'}</Tag> },
     {
       title: 'Actions', key: 'actions', render: (_: any, r: any) => (
@@ -61,6 +72,9 @@ export default function CommoditiesPage() {
           </Form.Item>
           <Form.Item label="Description" name="description">
             <Input.TextArea rows={2} />
+          </Form.Item>
+          <Form.Item label="Cess Applicable (1% APMC)" name="cessApplicable" valuePropName="checked" initialValue={true} extra="Deducts 1% cess on gross sale value for every delivery of this commodity">
+            <Switch checkedChildren="Yes" unCheckedChildren="No" />
           </Form.Item>
         </Form>
       </Modal>
