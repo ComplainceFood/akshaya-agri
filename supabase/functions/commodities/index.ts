@@ -30,8 +30,14 @@ Deno.serve(async (req) => {
   // PUT /commodities/:id
   if (req.method === 'PUT' && id) {
     const body = await req.json()
+    const { data: prev } = await db.from('Commodity').select('cessApplicable').eq('id', id).maybeSingle()
     const { data, error: dbErr } = await db.from('Commodity').update(body).eq('id', id).select().single()
     if (dbErr) return error(dbErr.message)
+    // If cessApplicable changed, recompute stored financials on all deliveries of this commodity
+    // so saleValue / cessOnSale / netPayable / grossMargin reflect the new flag immediately.
+    if (body.cessApplicable !== undefined && prev && body.cessApplicable !== prev.cessApplicable) {
+      await db.rpc('recompute_deliveries_for_commodity', { p_commodity_id: id }).then(() => {}).catch(() => {})
+    }
     return json(data)
   }
 

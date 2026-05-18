@@ -138,8 +138,19 @@ Deno.serve(async (req) => {
   // GET /deliveries/:id
   if (req.method === 'GET' && id) {
     const { data } = await db.from('Delivery')
-      .select('*, supplier:Supplier(*), customer:Customer(*), commodity:Commodity(id,name,cessApplicable), supplierPaymentAllocations:SupplierPaymentAllocation(*, payment:SupplierPayment(*)), customerReceiptAllocations:CustomerReceiptAllocation(*, receipt:CustomerReceipt(*))')
+      .select('*, supplier:Supplier(*), customer:Customer(*), supplierPaymentAllocations:SupplierPaymentAllocation(*, payment:SupplierPayment(*)), customerReceiptAllocations:CustomerReceiptAllocation(*, receipt:CustomerReceipt(*))')
       .eq('id', id).single()
+    // Enrich commodity manually — PostgREST FK join is unreliable for text PKs and can
+    // silently return stale or missing cessApplicable. Fetch the live row directly.
+    if (data?.commodityId) {
+      const { data: comm } = await db.from('Commodity')
+        .select('id,name,cessApplicable')
+        .eq('id', data.commodityId)
+        .maybeSingle()
+      ;(data as any).commodity = comm ?? null
+    } else if (data) {
+      ;(data as any).commodity = null
+    }
     return json(data)
   }
 
