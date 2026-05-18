@@ -17,18 +17,23 @@ function calcDelivery(data: {
   const adjustedWeight = netWeight * (1 - qd / 100)
   const purchaseValue = data.purchaseRate ? adjustedWeight * Number(data.purchaseRate) : null
   const saleValue = data.saleRate ? adjustedWeight * Number(data.saleRate) : null
-  const grossMargin = saleValue !== null && purchaseValue !== null ? saleValue - purchaseValue : null
 
   const mc = Number(data.moisturePct ?? 0)
   const mcDeduction = saleValue !== null && mc > MC_THRESHOLD_PCT
     ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue
     : 0
   const cessPaid = Number(data.cessPaid ?? 0)
-  // Use cessRate (daily sale rate for that date) for cess calculation; fall back to saleRate
+  // Cess and MC deductions are based on sale rate (rate paid to us by customer).
+  // Use cessRate (daily sale rate for that date); fall back to saleRate.
   const cessRateVal = data.cessRate ? Number(data.cessRate) : (data.saleRate ? Number(data.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
+  const cessAmount = cessBaseValue !== null ? cessBaseValue * CESS_RATE : null
   const balanceCess = cessBaseValue !== null
     ? (data.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
+    : null
+  // Margin is net of cess and moisture deduction (both based on sale rate).
+  const grossMargin = saleValue !== null && purchaseValue !== null
+    ? saleValue - purchaseValue - (cessAmount ?? 0) - mcDeduction
     : null
   const netPayable = purchaseValue !== null && balanceCess !== null
     ? purchaseValue - balanceCess - mcDeduction

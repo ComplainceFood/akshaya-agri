@@ -3,16 +3,27 @@ import { requireAuth } from '../_shared/auth.ts'
 
 // ICICI Bank Detailed Statement PDF parser
 //
-// Strategy (mirrors the working parse-weighing-report pattern):
-//   1. Pick a terminal marker that uniquely identifies each record.
-//      In ICICI statements each row contains exactly one TranID (S + 9-10 digits).
-//      It's the equivalent of PRODUCT+ChallanNo in the weighing report.
-//   2. Locate every TranID in the flattened PDF text (after gluing fragments).
-//   3. Slice the segment between consecutive markers; extract date / remarks /
-//      amounts / balance from that segment by position.
+// Each ICICI row prints column values across multiple lines (the cell wraps).
+// Example row 1 in the source PDF:
+//   "1 S4987 083 01/Apr/20 26 01/Apr/2026 01-Apr-2026 09:46:39 AM UPI/... 1,00,000.00 1,26,335.50"
+// fragments to reassemble:
+//   SI=1, TranID="S4987"+"083"="S4987083", ValueDate="01/Apr/20"+"26",
+//   TxnDate="01/Apr/2026", Posted="01-Apr-2026 09:46:39 AM"
+// TranID length after S varies 7-11 digits, so we cannot use it as a marker
+// regex (any short anchor matches noise). The posted-datetime "DD-Mon-YYYY HH:MM:SS AM/PM"
+// is the only token that appears EXACTLY ONCE per row and survives PDF wrapping
+// after a single targeted glue pass.
+//
+// Strategy:
+//   1. Flatten PDF, glue split year fragments inside the posted-datetime
+//      ("01-Apr-202" + "6 09:46:39 AM" → "01-Apr-2026 09:46:39 AM").
+//   2. Find every posted-datetime. Each is one row.
+//   3. The row's content runs from the previous posted-datetime's end up to
+//      the NEXT posted-datetime's start. SI + TranID + ValueDate live in the
+//      part BEFORE this datetime (within that window); remarks + amounts + balance
+//      live AFTER this datetime up to the next one.
 //   4. Use the statement's own end-of-statement summary block (Opening Bal /
-//      Withdrawls / Deposits / Closing Bal) as reconciliation: parsed totals
-//      must match within rounding tolerance.
+//      Withdrawls / Deposits / Closing Bal) as reconciliation.
 
 // ── PDF text extraction (per-page so headers/footers can be stripped) ────────
 
@@ -208,73 +219,98 @@ function parseBankStatement(text: string): {
   // 1. Flatten & glue PDF fragmentation ─────────────────────────────────────
   let flat = text.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ')
 
-  // Glue split short-year date "01/May/2" + "026" → "01/May/2026"
+  // Glue split posted datetime "01-Apr-202" + "6 09:46:39 AM" → "01-Apr-2026 09:46:39 AM"
+  // This is the ONE glue pass that matters — posted-datetime is our row anchor.
+  flat = flat.replace(/(\d{2}-[A-Za-z]{3,9}-\d{1,3})\s+(\d{1,3})\s+(\d{2}:\d{2}:\d{2}\s*[AP]M)/g,
+    (m, a, b, t) => /\d{4}$/.test(a + b) ? `${a}${b} ${t}` : m)
+
+  // Glue split short-year value date "01/May/2" + "026" → "01/May/2026"
   flat = flat.replace(/(\d{2}\/[A-Za-z]{3,9}\/\d{1,3})\s+(\d{1,3})(?=\D)/g, (m, a, b) => {
     const combined = a + b
     return /\/\d{4}$/.test(combined) ? combined : m
   })
 
-  // Glue split posted datetime "01-Apr-202" + "6 09:46:39 AM" → "01-Apr-2026 09:46:39 AM"
-  flat = flat.replace(/(\d{2}-[A-Za-z]{3,9}-\d{1,3})\s+(\d{1,3})\s+(\d{2}:\d{2}:\d{2}\s*[AP]M)/g,
-    (m, a, b, t) => /\d{4}$/.test(a + b) ? `${a}${b} ${t}` : m)
-
-  // Glue split TranID: "S4987" + " 083" → "S4987083"
-  // TranID is the row's terminal marker; if it's broken we miss the row entirely.
-  // It's always S followed by 9-10 total digits. Repair any S<3-7 digits> followed
-  // by a small digit run if the combined length is 9 or 10.
-  flat = flat.replace(/(S\d{3,7})\s+(\d{1,5})(?=\D)/g, (m, a, b) => {
-    const combined = a + b
-    const digits = combined.length - 1
-    return digits >= 8 && digits <= 11 ? combined : m
-  })
-
   const flatFixed = normaliseAmounts(flat)
 
-  // 2. Locate every TranID — the per-row terminal marker ────────────────────
-  // ICICI TranIDs are S + 8-11 digits. Surrounding tokens after gluing:
-  //   "<si> S<digits> <DD/Mon/YYYY> <DD/Mon/YYYY> <DD-Mon-YYYY HH:MM:SS AM/PM> ..."
-  const tranIdRe = /\b(S\d{8,11})\b/g
-  const markers: Array<{ index: number; length: number; tranId: string }> = []
-  let tm: RegExpExecArray | null
-  while ((tm = tranIdRe.exec(flatFixed)) !== null) {
-    markers.push({ index: tm.index, length: tm[0].length, tranId: tm[1] })
+  // 2. Find every posted-datetime — one per row ─────────────────────────────
+  const postedRe = /\b(\d{2})-([A-Za-z]{3,9})-(\d{4})\s+(\d{2}:\d{2}:\d{2})\s*([AP]M)\b/g
+  const posted: Array<{ index: number; length: number; isoDate: string }> = []
+  let pm: RegExpExecArray | null
+  while ((pm = postedRe.exec(flatFixed)) !== null) {
+    const mon = MONTHS[pm[2]] || MONTHS[pm[2].slice(0, 3)] || '01'
+    posted.push({
+      index: pm.index,
+      length: pm[0].length,
+      isoDate: `${pm[3]}-${mon}-${pm[1]}`,
+    })
   }
 
-  // 3. Walk segments between markers ────────────────────────────────────────
+  // 3. For each posted-datetime, extract one row ────────────────────────────
+  // PRE window  = [prev posted end, this posted start)  → contains SI, TranID, ValueDate, TxnDate
+  // POST window = [this posted end, next posted start)  → contains remarks + Dr/Cr amount + balance
+  //   (the SI + TranID at the tail of POST belong to the NEXT row)
   const rows: TxnRow[] = []
   const seenTranIds = new Set<string>()
 
-  for (let i = 0; i < markers.length; i++) {
-    const { tranId, index: mStart, length: mLen } = markers[i]
-    if (seenTranIds.has(tranId)) continue  // page-break reprint
+  for (let i = 0; i < posted.length; i++) {
+    const cur = posted[i]
+    const next = posted[i + 1]
+    const prev = posted[i - 1]
 
-    // SI is the integer immediately before this TranID
-    const before = flatFixed.slice(Math.max(0, mStart - 20), mStart)
-    const siMatch = before.match(/(\d{1,4})\s*$/)
-    const si = siMatch ? parseInt(siMatch[1], 10) : 0
+    const preStart = prev ? prev.index + prev.length : 0
+    const pre = flatFixed.slice(preStart, cur.index)
+    const post = flatFixed.slice(cur.index + cur.length, next ? next.index : flatFixed.length)
 
-    // Segment from end of this marker to start of next marker
-    const segEnd = i + 1 < markers.length ? markers[i + 1].index : flatFixed.length
-    const seg = flatFixed.slice(mStart + mLen, segEnd)
+    // ── SI + TranID from PRE window ──
+    // PRE shape (after gluing):  "... <si> S<digits...possibly with spaces> <DD/Mon/YYYY> <DD/Mon/YYYY> "
+    // We want: the LAST "<si> S<digits>(+ optional fragment runs)" before any date in PRE.
+    //
+    // First, strip trailing date tokens from PRE so the regex's $ aligns to TranID territory.
+    let preTrim = pre
+    // Drop any trailing run of "DD/Mon/YYYY" or partial year fragments
+    preTrim = preTrim.replace(/\s*(\d{2}\/[A-Za-z]{3,9}\/\d{4}|\d{2}\/[A-Za-z]{3,9}\/\d{1,3}|\d{1,3})\s*$/g, '')
 
-    // Trim any trailing SI digits that belong to the next row
-    let segClean = seg
-    const nextSiCut = segClean.search(/\s\d{1,4}\s*$/)
-    if (nextSiCut > 0) segClean = segClean.slice(0, nextSiCut)
-
-    // Transaction date: first DD/Mon/YYYY in segment (Value Date column);
-    // fallback to first DD-Mon-YYYY (posted datetime).
-    let txnDate = ''
-    const dateSlash = segClean.match(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/)
-    if (dateSlash) txnDate = parseDate(dateSlash[0])
-    if (!txnDate) {
-      const dateDash = segClean.match(/\d{2}-[A-Za-z]{3,9}-\d{4}/)
-      if (dateDash) txnDate = parseDate(dateDash[0])
+    // Match: <si> S<digits> [optional space-separated tail digits]
+    // Tail digits collected until something non-digit / non-space appears
+    const headerMatch = preTrim.match(/(\d{1,4})\s+(S\d{3,11})((?:\s+\d{1,6})*)\s*$/)
+    let si = 0
+    let tranId = ''
+    if (headerMatch) {
+      si = parseInt(headerMatch[1], 10)
+      tranId = headerMatch[2] + (headerMatch[3] || '').replace(/\s+/g, '')
+    } else {
+      // Fallback: any S\d+ near end of PRE
+      const fallback = preTrim.match(/(?:^|\s)(\d{1,4})?\s*(S\d{4,11})\s*$/)
+      if (fallback) {
+        si = fallback[1] ? parseInt(fallback[1], 10) : 0
+        tranId = fallback[2]
+      }
     }
-    if (!txnDate) continue  // not a real transaction row
 
-    // Amounts: dedupe consecutive duplicates (page-break Balance b/f repeats)
-    const rawAmounts = findAmounts(segClean)
+    // Validate TranID — must be S + at least 4 digits to count as real row
+    if (!tranId || !/^S\d{4,}$/.test(tranId)) continue
+
+    // De-dupe: page-break reprints emit the same posted-datetime + TranID twice
+    if (seenTranIds.has(tranId)) continue
+
+    // ── Transaction date: prefer DD/Mon/YYYY from PRE (Value Date column), else posted ──
+    let txnDate = cur.isoDate
+    const dateInPre = pre.match(/\d{2}\/[A-Za-z]{3,9}\/\d{4}/)
+    if (dateInPre) {
+      const d = parseDate(dateInPre[0])
+      if (d) txnDate = d
+    }
+
+    // ── POST window: cut off the next row's header (next "<si> S<digits>") ──
+    // The next row's SI + TranID start appearing in POST after the amounts.
+    // Cut at the first standalone "S\d{3,}" preceded by a small int (next SI).
+    let postClean = post
+    const nextHeaderCut = postClean.search(/\s\d{1,4}\s+S\d{3,}/)
+    if (nextHeaderCut > 0) postClean = postClean.slice(0, nextHeaderCut)
+
+    // ── Amounts: last two .dd values are [txnAmount, balance] ──
+    // De-dupe consecutive duplicates (page-break Balance b/f leak)
+    const rawAmounts = findAmounts(postClean)
     const amounts: number[] = []
     for (const a of rawAmounts) {
       if (amounts.length === 0 || amounts[amounts.length - 1] !== a) amounts.push(a)
@@ -283,8 +319,8 @@ function parseBankStatement(text: string): {
     const balance = amounts[amounts.length - 1]
     const txnAmount = amounts[amounts.length - 2]
 
-    // Remarks: from first mode keyword onwards, stripped of amounts
-    let remarks = segClean
+    // ── Remarks: from first mode keyword onwards, stripped of amounts ──
+    let remarks = postClean
     const modeStart = remarks.search(/\b(UPI|NEFT|RTGS|MMT|IMPS|INF)\b/i)
     if (modeStart >= 0) remarks = remarks.slice(modeStart)
     remarks = remarks
@@ -299,7 +335,7 @@ function parseBankStatement(text: string): {
     else if (/^RTGS/.test(ru) || /RTGS\//.test(ru)) mode = 'RTGS'
     else if (/^(MMT|IMPS)/.test(ru)) mode = 'IMPS'
 
-    // Dr vs Cr classification: inward credits use specific prefixes/keywords
+    // Dr vs Cr classification — inward credits have specific prefixes
     const isCredit =
       /NEFT.?RETURN/i.test(remarks) ||
       /RTGS.?RETURN/i.test(remarks) ||
@@ -320,7 +356,7 @@ function parseBankStatement(text: string): {
       deposit: isCredit ? txnAmount : 0,
       balance,
       mode,
-      _rawBlock: segClean.slice(0, 400),
+      _rawBlock: postClean.slice(0, 400),
       _amounts: amounts,
     })
     seenTranIds.add(tranId)

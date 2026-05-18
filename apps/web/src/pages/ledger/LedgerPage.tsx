@@ -466,12 +466,21 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
   const invoices = data?.invoices || []
 
   // Group by commodity for HSN-wise summary
-  const hsnMap: Record<string, { name: string; hsn: string; saleValue: number; purchaseValue: number; cess: number; count: number }> = {}
+  // Margin is net of cess (1% of sale) and moisture deduction (mc > 14%), both based on sale value.
+  const hsnMap: Record<string, { name: string; hsn: string; saleValue: number; purchaseValue: number; cessOnSale: number; mcDeduction: number; margin: number; cess: number; count: number }> = {}
   for (const d of deliveries) {
     const key = d.commodity?.id || 'unknown'
-    if (!hsnMap[key]) hsnMap[key] = { name: d.commodity?.name || '-', hsn: d.commodity?.hsnCode || '-', saleValue: 0, purchaseValue: 0, cess: 0, count: 0 }
-    hsnMap[key].saleValue += Number(d.saleValue ?? 0)
-    hsnMap[key].purchaseValue += Number(d.purchaseValue ?? 0)
+    if (!hsnMap[key]) hsnMap[key] = { name: d.commodity?.name || '-', hsn: d.commodity?.hsnCode || '-', saleValue: 0, purchaseValue: 0, cessOnSale: 0, mcDeduction: 0, margin: 0, cess: 0, count: 0 }
+    const sv = Number(d.saleValue ?? 0)
+    const pv = Number(d.purchaseValue ?? 0)
+    const mc = Number(d.moisturePct ?? 0)
+    const cessOnSale = sv * 0.01
+    const mcDeduction = mc > 14 ? ((mc - 14) / 100) * sv : 0
+    hsnMap[key].saleValue += sv
+    hsnMap[key].purchaseValue += pv
+    hsnMap[key].cessOnSale += cessOnSale
+    hsnMap[key].mcDeduction += mcDeduction
+    hsnMap[key].margin += sv - pv - cessOnSale - mcDeduction
     hsnMap[key].cess += Number(d.cessPaid ?? 0)
     hsnMap[key].count++
   }
@@ -500,7 +509,7 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
     const hsnData = [
       ['HSN-WISE SUMMARY'],
       ['Commodity', 'HSN Code', 'Transactions', 'Sale Value', 'Purchase Value', 'Margin', 'Cess Paid'],
-      ...hsnRows.map(r => [r.name, r.hsn, r.count, r.saleValue, r.purchaseValue, r.saleValue - r.purchaseValue, r.cess]),
+      ...hsnRows.map(r => [r.name, r.hsn, r.count, r.saleValue, r.purchaseValue, r.margin, r.cess]),
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hsnData), 'HSN Summary')
 
@@ -512,7 +521,7 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
       <td>${r.name}</td><td>${r.hsn}</td><td class="right">${r.count}</td>
       <td class="right">${formatINR(r.saleValue)}</td>
       <td class="right">${formatINR(r.purchaseValue)}</td>
-      <td class="right ${r.saleValue - r.purchaseValue >= 0 ? 'green' : 'red'}">${formatINR(r.saleValue - r.purchaseValue)}</td>
+      <td class="right ${r.margin >= 0 ? 'green' : 'red'}">${formatINR(r.margin)}</td>
       <td class="right">${formatINR(r.cess)}</td>
     </tr>`).join('')
 
@@ -539,7 +548,7 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
           <td class="right">${hsnRows.reduce((s, r) => s + r.count, 0)}</td>
           <td class="right">${formatINR(hsnRows.reduce((s, r) => s + r.saleValue, 0))}</td>
           <td class="right">${formatINR(hsnRows.reduce((s, r) => s + r.purchaseValue, 0))}</td>
-          <td class="right">${formatINR(hsnRows.reduce((s, r) => s + r.saleValue - r.purchaseValue, 0))}</td>
+          <td class="right">${formatINR(hsnRows.reduce((s, r) => s + r.margin, 0))}</td>
           <td class="right">${formatINR(hsnRows.reduce((s, r) => s + r.cess, 0))}</td>
         </tr></tfoot>
       </table>`
@@ -552,7 +561,7 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
     { title: 'Transactions', dataIndex: 'count', key: 'count', align: 'right' as const, width: 110 },
     { title: 'Sale Value', dataIndex: 'saleValue', key: 'sv', align: 'right' as const, width: 150, render: (v: number) => formatINR(v) },
     { title: 'Purchase Value', dataIndex: 'purchaseValue', key: 'pv', align: 'right' as const, width: 150, render: (v: number) => formatINR(v) },
-    { title: 'Margin', key: 'margin', align: 'right' as const, width: 150, render: (_: any, r: any) => { const m = r.saleValue - r.purchaseValue; return <span style={{ color: m >= 0 ? '#2e7d32' : '#cf1322', fontWeight: 600 }}>{formatINR(m)}</span> } },
+    { title: 'Margin', key: 'margin', align: 'right' as const, width: 150, render: (_: any, r: any) => <span style={{ color: r.margin >= 0 ? '#2e7d32' : '#cf1322', fontWeight: 600 }}>{formatINR(r.margin)}</span> },
     { title: 'Cess Paid', dataIndex: 'cess', key: 'cess', align: 'right' as const, width: 120, render: (v: number) => formatINR(v) },
   ]
 

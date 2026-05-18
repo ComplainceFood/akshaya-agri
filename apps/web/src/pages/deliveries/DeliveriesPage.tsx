@@ -25,15 +25,20 @@ function calcDerived(r: any) {
   const adjustedWeight = netWeight * (1 - qd / 100)
   const purchaseValue = r.purchaseRate ? adjustedWeight * Number(r.purchaseRate) : null
   const saleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
-  const grossMargin = saleValue != null && purchaseValue != null ? saleValue - purchaseValue : null
   const mc = Number(r.moisturePct ?? 0)
   const mcDeduction = saleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
-  // Use cessRate (daily sale rate for that date) for cess; fall back to saleRate
+  // Cess and MC deductions are based on sale rate (rate paid to us by customer).
+  // Use cessRate (daily sale rate for that date); fall back to saleRate.
   const cessRateVal = r.cessRate ? Number(r.cessRate) : (r.saleRate ? Number(r.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
+  const cessAmount = cessBaseValue != null ? cessBaseValue * CESS_RATE : null
   const balanceCess = cessBaseValue != null
     ? (r.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
+    : null
+  // Margin is net of cess and moisture deduction (both based on sale rate).
+  const grossMargin = saleValue != null && purchaseValue != null
+    ? saleValue - purchaseValue - (cessAmount ?? 0) - mcDeduction
     : null
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction

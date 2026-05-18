@@ -74,7 +74,14 @@ Deno.serve(async (req) => {
     const totalSales = (deliveries || []).reduce((s: number, d: any) => s + Number(d.saleValue ?? 0), 0)
     const totalPurchases = (deliveries || []).reduce((s: number, d: any) => s + Number(d.purchaseValue ?? 0), 0)
     const totalCess = (deliveries || []).reduce((s: number, d: any) => s + Number(d.cessPaid ?? 0), 0)
-    const grossMargin = totalSales - totalPurchases
+    // Margin is net of cess (1% of sale) and moisture deduction (only when mc > 14%), both based on sale rate.
+    const totalCessOnSale = (deliveries || []).reduce((s: number, d: any) => s + Number(d.saleValue ?? 0) * 0.01, 0)
+    const totalMcDeduction = (deliveries || []).reduce((s: number, d: any) => {
+      const mc = Number(d.moisturePct ?? 0)
+      const sv = Number(d.saleValue ?? 0)
+      return s + (mc > 14 ? ((mc - 14) / 100) * sv : 0)
+    }, 0)
+    const grossMargin = totalSales - totalPurchases - totalCessOnSale - totalMcDeduction
     const totalSupplierPaid = (supplierPayments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
     const totalCustomerReceived = (customerReceipts || []).reduce((s: number, r: any) => s + Number(r.amount), 0)
     const totalManualDebits = (manualEntries || []).filter((e: any) => e.type === 'DEBIT').reduce((s: number, e: any) => s + Number(e.amount), 0)
