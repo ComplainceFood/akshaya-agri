@@ -16,25 +16,33 @@ function calcDelivery(data: {
   const netWeight = gross - tare
   const adjustedWeight = netWeight * (1 - qd / 100)
   const purchaseValue = data.purchaseRate ? adjustedWeight * Number(data.purchaseRate) : null
-  const saleValue = data.saleRate ? adjustedWeight * Number(data.saleRate) : null
+  // Gross sale = adjusted weight × sale rate (this is what the customer is invoiced).
+  const grossSaleValue = data.saleRate ? adjustedWeight * Number(data.saleRate) : null
 
   const mc = Number(data.moisturePct ?? 0)
-  const mcDeduction = saleValue !== null && mc > MC_THRESHOLD_PCT
-    ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue
+  // MC deduction is applied on the gross sale (customer deducts this from what they pay us,
+  // and the same deduction is passed through to the supplier on netPayable).
+  const mcDeduction = grossSaleValue !== null && mc > MC_THRESHOLD_PCT
+    ? ((mc - MC_THRESHOLD_PCT) / 100) * grossSaleValue
     : 0
   const cessPaid = Number(data.cessPaid ?? 0)
-  // Cess and MC deductions are based on sale rate (rate paid to us by customer).
-  // Use cessRate (daily sale rate for that date); fall back to saleRate.
+  // Cess base uses cessRate (daily sale rate for the date); fall back to saleRate.
   const cessRateVal = data.cessRate ? Number(data.cessRate) : (data.saleRate ? Number(data.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
   const cessAmount = cessBaseValue !== null ? cessBaseValue * CESS_RATE : null
   const balanceCess = cessBaseValue !== null
     ? (data.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
     : null
-  // Margin is net of cess and moisture deduction (both based on sale rate).
-  const grossMargin = saleValue !== null && purchaseValue !== null
-    ? saleValue - purchaseValue - (cessAmount ?? 0) - mcDeduction
+  // Stored saleValue = net realisation (gross − cess − MC). Drives margin, ledger, outstandings.
+  // Invoices recompute gross independently for the customer-facing document.
+  const saleValue = grossSaleValue !== null
+    ? grossSaleValue - (cessAmount ?? 0) - mcDeduction
     : null
+  // Margin = net sale realisation − purchase cost (deductions already inside saleValue).
+  const grossMargin = saleValue !== null && purchaseValue !== null
+    ? saleValue - purchaseValue
+    : null
+  // Supplier payout: MC is passed through (same amount the customer deducted from us).
   const netPayable = purchaseValue !== null && balanceCess !== null
     ? purchaseValue - balanceCess - mcDeduction
     : null

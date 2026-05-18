@@ -38,9 +38,14 @@ Deno.serve(async (req) => {
     const customerId = thirdPart
     const { data: deliveries } = await db.from('Delivery').select('*').eq('customerId', customerId).order('deliveryDate')
     const { data: receipts } = await db.from('CustomerReceipt').select('*').eq('customerId', customerId).order('receiptDate')
+    // Customer is invoiced GROSS (adjustedWeight × saleRate); track outstanding against gross.
+    // Delivery.saleValue is net realisation (after cess + MC); kept for reference.
     const totalSale = (deliveries || []).reduce((s: number, d: any) => s + Number(d.saleValue ?? 0), 0)
+    const totalGrossSale = (deliveries || []).reduce(
+      (s: number, d: any) => s + Number(d.adjustedWeight ?? 0) * Number(d.saleRate ?? 0), 0
+    )
     const totalReceived = (receipts || []).reduce((s: number, r: any) => s + Number(r.amount), 0)
-    return json({ deliveries, receipts, totalSale, totalReceived, outstanding: totalSale - totalReceived })
+    return json({ deliveries, receipts, totalSale, totalGrossSale, totalReceived, outstanding: totalGrossSale - totalReceived })
   }
 
   // GET /payments/supplier

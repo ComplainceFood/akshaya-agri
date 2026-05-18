@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
         .limit(10),
       db.from('SupplierPayment').select('amount, supplierId'),
       db.from('CustomerReceipt').select('amount, customerId'),
-      db.from('Delivery').select('purchaseValue, saleValue, grossMargin, netPayable, adjustedWeight, deliveryDate, supplierId, customerId, supplier:Supplier(id,name), customer:Customer(id,name)'),
+      db.from('Delivery').select('purchaseValue, saleValue, grossMargin, netPayable, adjustedWeight, saleRate, deliveryDate, supplierId, customerId, supplier:Supplier(id,name), customer:Customer(id,name)'),
       db.from('SupplierPayment').select('amount, supplierId, supplier:Supplier(id,name)'),
       db.from('CustomerReceipt').select('amount, customerId, customer:Customer(id,name)'),
     ])
@@ -76,15 +76,17 @@ Deno.serve(async (req) => {
     for (const r of (customerReceiptsByCustomer || [])) {
       receivedByCustomer[r.customerId] = (receivedByCustomer[r.customerId] ?? 0) + Number(r.amount)
     }
-    const saleByCustomer: Record<string, { name: string; totalSale: number; totalReceived: number }> = {}
+    // Customer outstanding tracks the gross invoiced amount (rate × weight), not net realisation.
+    const saleByCustomer: Record<string, { name: string; totalSale: number; totalGrossSale: number; totalReceived: number }> = {}
     for (const d of (allDeliveries || [])) {
       if (!d.customerId) continue
-      if (!saleByCustomer[d.customerId]) saleByCustomer[d.customerId] = { name: d.customer?.name ?? d.customerId, totalSale: 0, totalReceived: 0 }
+      if (!saleByCustomer[d.customerId]) saleByCustomer[d.customerId] = { name: d.customer?.name ?? d.customerId, totalSale: 0, totalGrossSale: 0, totalReceived: 0 }
       saleByCustomer[d.customerId].totalSale += Number(d.saleValue ?? 0)
+      saleByCustomer[d.customerId].totalGrossSale += Number(d.adjustedWeight ?? 0) * Number(d.saleRate ?? 0)
     }
     for (const [cid, val] of Object.entries(saleByCustomer)) val.totalReceived = receivedByCustomer[cid] ?? 0
     const topCustomerReceivables = Object.entries(saleByCustomer)
-      .map(([id, v]) => ({ customerId: id, name: v.name, outstanding: v.totalSale - v.totalReceived, totalSale: v.totalSale }))
+      .map(([id, v]) => ({ customerId: id, name: v.name, outstanding: v.totalGrossSale - v.totalReceived, totalSale: v.totalSale }))
       .filter(c => c.outstanding > 0).sort((a, b) => b.outstanding - a.outstanding).slice(0, 5)
 
     // ── Daily last 30 days ──────────────────────────────────────────────────
@@ -238,7 +240,7 @@ Deno.serve(async (req) => {
     const to = url.searchParams.get('to')
     const customerId = url.searchParams.get('customerId')
 
-    let dQuery = db.from('Delivery').select('customerId, adjustedWeight, saleValue, grossMargin, deliveryDate, customer:Customer(id,name)')
+    let dQuery = db.from('Delivery').select('customerId, adjustedWeight, saleRate, saleValue, grossMargin, deliveryDate, customer:Customer(id,name)')
     if (from) dQuery = dQuery.gte('deliveryDate', from)
     if (to) dQuery = dQuery.lte('deliveryDate', to)
     if (customerId) dQuery = dQuery.eq('customerId', customerId)
@@ -253,10 +255,11 @@ Deno.serve(async (req) => {
     for (const d of (deliveries || [])) {
       const cid = d.customerId
       if (!cid) continue
-      if (!byCustomer[cid]) byCustomer[cid] = { customerId: cid, name: d.customer?.name ?? cid, deliveryCount: 0, totalWeight: 0, totalSaleValue: 0, totalMargin: 0, totalReceived: 0 }
+      if (!byCustomer[cid]) byCustomer[cid] = { customerId: cid, name: d.customer?.name ?? cid, deliveryCount: 0, totalWeight: 0, totalSaleValue: 0, totalGrossSale: 0, totalMargin: 0, totalReceived: 0 }
       byCustomer[cid].deliveryCount++
       byCustomer[cid].totalWeight += Number(d.adjustedWeight ?? 0)
       byCustomer[cid].totalSaleValue += Number(d.saleValue ?? 0)
+      byCustomer[cid].totalGrossSale += Number(d.adjustedWeight ?? 0) * Number(d.saleRate ?? 0)
       byCustomer[cid].totalMargin += Number(d.grossMargin ?? 0)
     }
 
@@ -267,7 +270,8 @@ Deno.serve(async (req) => {
 
     const rows = Object.values(byCustomer).map((r: any) => ({
       ...r,
-      outstanding: r.totalSaleValue - r.totalReceived,
+      // Outstanding is measured against the gross invoiced amount, not net realisation.
+      outstanding: r.totalGrossSale - r.totalReceived,
     })).sort((a: any, b: any) => b.totalSaleValue - a.totalSaleValue)
 
     let receiptHistory = null

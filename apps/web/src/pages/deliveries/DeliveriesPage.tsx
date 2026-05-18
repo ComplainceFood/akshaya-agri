@@ -24,26 +24,31 @@ function calcDerived(r: any) {
   const netWeight = gross - tare
   const adjustedWeight = netWeight * (1 - qd / 100)
   const purchaseValue = r.purchaseRate ? adjustedWeight * Number(r.purchaseRate) : null
-  const saleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
+  // Gross sale = adjusted weight × sale rate (this is what the customer is invoiced).
+  const grossSaleValue = r.saleRate ? adjustedWeight * Number(r.saleRate) : null
   const mc = Number(r.moisturePct ?? 0)
-  const mcDeduction = saleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * saleValue : 0
+  const mcDeduction = grossSaleValue != null && mc > MC_THRESHOLD_PCT ? ((mc - MC_THRESHOLD_PCT) / 100) * grossSaleValue : 0
   const cessPaid = Number(r.cessPaid ?? 0)
-  // Cess and MC deductions are based on sale rate (rate paid to us by customer).
-  // Use cessRate (daily sale rate for that date); fall back to saleRate.
+  // Cess base uses cessRate (daily sale rate for the date); fall back to saleRate.
   const cessRateVal = r.cessRate ? Number(r.cessRate) : (r.saleRate ? Number(r.saleRate) : null)
   const cessBaseValue = cessRateVal ? adjustedWeight * cessRateVal : null
   const cessAmount = cessBaseValue != null ? cessBaseValue * CESS_RATE : null
   const balanceCess = cessBaseValue != null
     ? (r.cessApplicable ? cessBaseValue * CESS_RATE - cessPaid : -cessPaid)
     : null
-  // Margin is net of cess and moisture deduction (both based on sale rate).
-  const grossMargin = saleValue != null && purchaseValue != null
-    ? saleValue - purchaseValue - (cessAmount ?? 0) - mcDeduction
+  // Stored saleValue = net realisation (gross − cess − MC). Customer pays this amount.
+  const saleValue = grossSaleValue != null
+    ? grossSaleValue - (cessAmount ?? 0) - mcDeduction
     : null
+  // Margin = net sale realisation − purchase cost (deductions already inside saleValue).
+  const grossMargin = saleValue != null && purchaseValue != null
+    ? saleValue - purchaseValue
+    : null
+  // Supplier payout: MC is passed through (same amount the customer deducted from us).
   const netPayable = purchaseValue != null && balanceCess != null
     ? purchaseValue - balanceCess - mcDeduction
     : null
-  return { netWeight, adjustedWeight, purchaseValue, saleValue, grossMargin, mcDeduction, balanceCess, netPayable }
+  return { netWeight, adjustedWeight, purchaseValue, grossSaleValue, saleValue, grossMargin, mcDeduction, balanceCess, netPayable }
 }
 
 function DeliveryDetail({ id }: { id: string }) {
@@ -93,8 +98,12 @@ function DeliveryDetail({ id }: { id: string }) {
         {liveSaleRate != null ? `₹${Number(liveSaleRate).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/Qt` : '-'}
         {dailyRates?.saleRate == null && d.saleRate && <span style={{ color: '#faad14', fontSize: 11, marginLeft: 6 }}>(no daily rate set)</span>}
       </Descriptions.Item>
-      <Descriptions.Item label="Sale Value">{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</Descriptions.Item>
-      <Descriptions.Item label="Margin" span={2}>
+      <Descriptions.Item label="Gross Sale (A×Rate)">{calc.grossSaleValue != null ? formatINR(calc.grossSaleValue) : '-'}</Descriptions.Item>
+      <Descriptions.Item label="Sale Value (Net realised)" span={2}>
+        <b>{calc.saleValue != null ? formatINR(calc.saleValue) : '-'}</b>
+        <span style={{ color: '#888', fontSize: 11, marginLeft: 8 }}>(Gross Sale − Cess − MC Deduction)</span>
+      </Descriptions.Item>
+      <Descriptions.Item label="Margin (Sale Value − Gross Amt)" span={2}>
         <b style={{ color: calc.grossMargin != null && calc.grossMargin >= 0 ? '#389e0d' : '#cf1322' }}>{calc.grossMargin != null ? formatINR(calc.grossMargin) : '-'}</b>
       </Descriptions.Item>
       {d.notes && <Descriptions.Item label="Notes" span={2}>{d.notes}</Descriptions.Item>}

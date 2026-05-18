@@ -63,7 +63,10 @@ Deno.serve(async (req) => {
       }
       groups[key].deliveries.push(d)
       groups[key].totalWeight += Number(d.adjustedWeight ?? 0)
-      groups[key].totalSaleValue += Number(d.saleValue ?? 0)
+      // Invoices show gross sale (adjWt × saleRate). Cess and MC are internal deductions,
+      // not shown on the customer-facing invoice. Delivery.saleValue is net of those.
+      const grossLine = Number(d.adjustedWeight ?? 0) * Number(d.saleRate ?? 0)
+      groups[key].totalSaleValue += grossLine
     }
 
     return json(Object.values(groups))
@@ -91,6 +94,8 @@ Deno.serve(async (req) => {
       if (invErr) return error(invErr.message)
 
       for (const d of g.deliveries) {
+        // Invoice line shows gross amount (rate × weight). Cess and MC don't appear on the invoice.
+        const grossAmount = Number(d.adjustedWeight ?? 0) * Number(d.saleRate ?? 0)
         await db.from('InvoiceItem').insert({
           id: crypto.randomUUID(),
           invoiceId: inv.id,
@@ -99,7 +104,7 @@ Deno.serve(async (req) => {
           vehicleNumber: d.vehicleNumber,
           weight: Number(d.adjustedWeight ?? 0),
           saleRate: Number(d.saleRate ?? 0),
-          amount: Number(d.saleValue ?? 0),
+          amount: grossAmount,
         })
       }
       created.push(inv)

@@ -465,22 +465,17 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
   const deliveries = data?.deliveries || []
   const invoices = data?.invoices || []
 
-  // Group by commodity for HSN-wise summary
-  // Margin is net of cess (1% of sale) and moisture deduction (mc > 14%), both based on sale value.
-  const hsnMap: Record<string, { name: string; hsn: string; saleValue: number; purchaseValue: number; cessOnSale: number; mcDeduction: number; margin: number; cess: number; count: number }> = {}
+  // Group by commodity for HSN-wise summary.
+  // saleValue on Delivery is the net realisation (gross − cess − MC).
+  const hsnMap: Record<string, { name: string; hsn: string; saleValue: number; purchaseValue: number; margin: number; cess: number; count: number }> = {}
   for (const d of deliveries) {
     const key = d.commodity?.id || 'unknown'
-    if (!hsnMap[key]) hsnMap[key] = { name: d.commodity?.name || '-', hsn: d.commodity?.hsnCode || '-', saleValue: 0, purchaseValue: 0, cessOnSale: 0, mcDeduction: 0, margin: 0, cess: 0, count: 0 }
+    if (!hsnMap[key]) hsnMap[key] = { name: d.commodity?.name || '-', hsn: d.commodity?.hsnCode || '-', saleValue: 0, purchaseValue: 0, margin: 0, cess: 0, count: 0 }
     const sv = Number(d.saleValue ?? 0)
     const pv = Number(d.purchaseValue ?? 0)
-    const mc = Number(d.moisturePct ?? 0)
-    const cessOnSale = sv * 0.01
-    const mcDeduction = mc > 14 ? ((mc - 14) / 100) * sv : 0
     hsnMap[key].saleValue += sv
     hsnMap[key].purchaseValue += pv
-    hsnMap[key].cessOnSale += cessOnSale
-    hsnMap[key].mcDeduction += mcDeduction
-    hsnMap[key].margin += sv - pv - cessOnSale - mcDeduction
+    hsnMap[key].margin += sv - pv
     hsnMap[key].cess += Number(d.cessPaid ?? 0)
     hsnMap[key].count++
   }
