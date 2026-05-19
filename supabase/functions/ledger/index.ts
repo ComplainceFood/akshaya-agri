@@ -23,6 +23,24 @@ Deno.serve(async (req) => {
     return json(data, 201)
   }
 
+  // PUT /ledger/entries/:id — update a manual journal entry
+  if (req.method === 'PUT' && parts[parts.indexOf('ledger') + 1] === 'entries') {
+    const id = parts[parts.indexOf('entries') + 1]
+    if (!id) return error('Missing entry id', 400)
+    const body = await req.json()
+    // strip immutable fields
+    const patch = { ...(body ?? {}) }
+    delete patch.id
+    delete patch.createdAt
+    const { data, error: dbErr } = await db.from('LedgerEntry')
+      .update({ ...patch, updatedAt: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single()
+    if (dbErr) return error(dbErr.message)
+    return json(data)
+  }
+
   // DELETE /ledger/entries/:id
   if (req.method === 'DELETE' && parts[parts.indexOf('ledger') + 1] === 'entries') {
     const id = parts[parts.indexOf('entries') + 1]

@@ -1,19 +1,22 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Tabs, Table, Button, Modal, Form, Input, InputNumber, Select,
   DatePicker, Typography, message, Card, Statistic, Row, Col, Tag,
-  Space, Divider, Tooltip, Popconfirm,
+  Space, Divider, Popconfirm,
 } from 'antd'
 import {
   PlusOutlined, FilePdfOutlined, FileExcelOutlined,
-  ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined,
-  BookOutlined, BankOutlined,
+  ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined, EditOutlined,
+  BookOutlined, SearchOutlined,
 } from '@ant-design/icons'
-import { useLedgerSummary, useCreateLedgerEntry, useDeleteLedgerEntry } from '../../api/hooks'
+import { useLedgerSummary, useCreateLedgerEntry, useDeleteLedgerEntry, useUpdateLedgerEntry } from '../../api/hooks'
 import { formatINR } from '../../utils/format'
 import { BRAND, brandPrintHeader, BRAND_PRINT_CSS, getLogoDataUri } from '../../utils/brand'
-import dayjs from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
+import quarterOfYear from 'dayjs/plugin/quarterOfYear'
+dayjs.extend(quarterOfYear)
 import * as XLSX from 'xlsx'
+import ImportBankStatement from '../payments/ImportBankStatement'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -101,7 +104,21 @@ function SummaryCards({ data }: { data: any }) {
 
 // ── Sales Tab ─────────────────────────────────────────────────────────────────
 function SalesTab({ data }: { data: any }) {
-  const rows = data?.deliveries || []
+  const [search, setSearch] = useState('')
+  const allRows = useMemo(
+    () => (data?.deliveries || []).filter((d: any) => Number(d.saleValue ?? 0) > 0),
+    [data]
+  )
+  const rows = useMemo(() => {
+    if (!search.trim()) return allRows
+    const q = search.toLowerCase()
+    return allRows.filter((r: any) =>
+      (r.customer?.name ?? '').toLowerCase().includes(q) ||
+      (r.commodity?.name ?? '').toLowerCase().includes(q) ||
+      (r.lrNumber ?? '').toLowerCase().includes(q) ||
+      (r.deliveryNumber ?? '').toLowerCase().includes(q)
+    )
+  }, [allRows, search])
   const nowrap = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
   const cols = [
     { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 90, ...nowrap, render: (v: string) => dayjs(v).format('DD/MM/YY') },
@@ -166,7 +183,15 @@ function SalesTab({ data }: { data: any }) {
 
   return (
     <>
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="Search customer, commodity, slip…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 280 }}
+        />
         <Button icon={<FilePdfOutlined />} onClick={printPDF}>Print / PDF</Button>
         <Button icon={<FileExcelOutlined />} onClick={exportExcel}>Export Excel</Button>
       </Space>
@@ -186,7 +211,17 @@ function SalesTab({ data }: { data: any }) {
 
 // ── Purchases Tab ─────────────────────────────────────────────────────────────
 function PurchasesTab({ data }: { data: any }) {
-  const rows = data?.deliveries || []
+  const [search, setSearch] = useState('')
+  const allRows = useMemo(() => data?.deliveries || [], [data])
+  const rows = useMemo(() => {
+    if (!search.trim()) return allRows
+    const q = search.toLowerCase()
+    return allRows.filter((r: any) =>
+      (r.supplier?.name ?? '').toLowerCase().includes(q) ||
+      (r.commodity?.name ?? '').toLowerCase().includes(q) ||
+      (r.deliveryNumber ?? '').toLowerCase().includes(q)
+    )
+  }, [allRows, search])
   const nowrap = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
   const cols = [
     { title: 'Date', dataIndex: 'deliveryDate', key: 'date', width: 90, ...nowrap, render: (v: string) => dayjs(v).format('DD/MM/YY') },
@@ -251,7 +286,15 @@ function PurchasesTab({ data }: { data: any }) {
 
   return (
     <>
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="Search supplier, commodity, delivery no…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 280 }}
+        />
         <Button icon={<FilePdfOutlined />} onClick={printPDF}>Print / PDF</Button>
         <Button icon={<FileExcelOutlined />} onClick={exportExcel}>Export Excel</Button>
       </Space>
@@ -271,8 +314,22 @@ function PurchasesTab({ data }: { data: any }) {
 
 // ── Payments Tab ──────────────────────────────────────────────────────────────
 function PaymentsTab({ data }: { data: any }) {
-  const payments = data?.supplierPayments || []
-  const receipts = data?.customerReceipts || []
+  const [search, setSearch] = useState('')
+  const allPayments = data?.supplierPayments || []
+  const allReceipts = data?.customerReceipts || []
+  const q = search.trim().toLowerCase()
+  const payments = q
+    ? allPayments.filter((p: any) =>
+        (p.supplier?.name ?? '').toLowerCase().includes(q) ||
+        (p.paymentNumber ?? '').toLowerCase().includes(q) ||
+        (p.referenceNumber ?? '').toLowerCase().includes(q))
+    : allPayments
+  const receipts = q
+    ? allReceipts.filter((r: any) =>
+        (r.customer?.name ?? '').toLowerCase().includes(q) ||
+        (r.receiptNumber ?? '').toLowerCase().includes(q) ||
+        (r.referenceNumber ?? '').toLowerCase().includes(q))
+    : allReceipts
   const nowrap = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
 
   const paymentCols = [
@@ -315,7 +372,15 @@ function PaymentsTab({ data }: { data: any }) {
 
   return (
     <>
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="Search supplier/customer, UTR, ref…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 280 }}
+        />
         <Button icon={<FileExcelOutlined />} onClick={exportExcel}>Export Excel</Button>
       </Space>
       <Row gutter={[12, 0]} style={{ marginBottom: 12 }}>
@@ -334,11 +399,40 @@ function PaymentsTab({ data }: { data: any }) {
 // ── Journal Entries Tab ───────────────────────────────────────────────────────
 function JournalTab({ data, onRefresh }: { data: any; onRefresh: () => void }) {
   const [addModal, setAddModal] = useState(false)
+  const [editRow, setEditRow] = useState<any | null>(null)
+  const [search, setSearch] = useState('')
   const [form] = Form.useForm()
+  const [editForm] = Form.useForm()
   const createEntry = useCreateLedgerEntry()
+  const updateEntry = useUpdateLedgerEntry()
   const deleteEntry = useDeleteLedgerEntry()
-  const rows = data?.manualEntries || []
+  const allRows = data?.manualEntries || []
+  const rows = useMemo(() => {
+    if (!search.trim()) return allRows
+    const q = search.toLowerCase()
+    return allRows.filter((r: any) =>
+      (r.description ?? '').toLowerCase().includes(q) ||
+      (r.reference ?? '').toLowerCase().includes(q) ||
+      (r.bankAccount ?? '').toLowerCase().includes(q) ||
+      (r.category ?? '').toLowerCase().includes(q) ||
+      (r.notes ?? '').toLowerCase().includes(q)
+    )
+  }, [allRows, search])
   const nowrap = { onCell: () => ({ style: { whiteSpace: 'nowrap' as const } }) }
+
+  function openEdit(r: any) {
+    setEditRow(r)
+    editForm.setFieldsValue({
+      entryDate: r.entryDate ? dayjs(r.entryDate) : null,
+      type: r.type,
+      category: r.category,
+      amount: r.amount,
+      description: r.description,
+      reference: r.reference,
+      bankAccount: r.bankAccount,
+      notes: r.notes,
+    })
+  }
 
   const cols = [
     { title: 'Date', dataIndex: 'entryDate', key: 'date', width: 90, ...nowrap, render: (v: string) => dayjs(v).format('DD/MM/YY') },
@@ -362,11 +456,14 @@ function JournalTab({ data, onRefresh }: { data: any; onRefresh: () => void }) {
       render: (v: string) => <Tag color={v === 'BANK_IMPORT' ? 'blue' : 'default'}>{v === 'BANK_IMPORT' ? 'Bank Import' : 'Manual'}</Tag>,
     },
     {
-      title: '', key: 'action', width: 50,
+      title: '', key: 'action', width: 80,
       render: (_: any, r: any) => (
-        <Popconfirm title="Delete this entry?" onConfirm={() => deleteEntry.mutate(r.id, { onSuccess: onRefresh })}>
-          <Button type="text" danger size="small" icon={<DeleteOutlined />} />
-        </Popconfirm>
+        <Space size={0}>
+          <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+          <Popconfirm title="Delete this entry?" onConfirm={() => deleteEntry.mutate(r.id, { onSuccess: onRefresh })}>
+            <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -385,13 +482,31 @@ function JournalTab({ data, onRefresh }: { data: any; onRefresh: () => void }) {
     })
   }
 
+  async function handleEdit(values: any) {
+    if (!editRow) return
+    await updateEntry.mutateAsync({
+      id: editRow.id,
+      ...values,
+      entryDate: values.entryDate.format('YYYY-MM-DD'),
+    }, {
+      onSuccess: () => { setEditRow(null); editForm.resetFields(); onRefresh() },
+      onError: () => message.error('Failed to update entry'),
+    })
+  }
+
   return (
     <>
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="Search description, reference, category…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 280 }}
+        />
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddModal(true)}>Add Journal Entry</Button>
-        <Tooltip title="Future: Upload bank statement CSV to auto-import entries">
-          <Button icon={<BankOutlined />} disabled>Import Bank Statement (coming soon)</Button>
-        </Tooltip>
+        <ImportBankStatement saveAs="ledger" buttonLabel="Import Bank Statement" onDone={onRefresh} />
       </Space>
       <Row gutter={[12, 0]} style={{ marginBottom: 12 }}>
         <Col span={12}><Card size="small" className="stat-card"><Statistic title="Total Credits" value={formatINR(totalCredits)} valueStyle={{ color: '#2e7d32', fontSize: 14 }} /></Card></Col>
@@ -411,6 +526,54 @@ function JournalTab({ data, onRefresh }: { data: any; onRefresh: () => void }) {
       <Modal title="Add Journal Entry" open={addModal} onCancel={() => { setAddModal(false); form.resetFields() }}
         onOk={() => form.submit()} okText="Save Entry" confirmLoading={createEntry.isPending}>
         <Form form={form} layout="vertical" onFinish={handleAdd} style={{ marginTop: 16 }}>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="entryDate" label="Date" rules={[{ required: true }]}>
+                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="type" label="Type" rules={[{ required: true }]}>
+                <Select options={[{ value: 'CREDIT', label: 'CREDIT (Income)' }, { value: 'DEBIT', label: 'DEBIT (Expense)' }]} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="category" label="Category" rules={[{ required: true }]}>
+                <Select options={CATEGORIES} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="amount" label="Amount (₹)" rules={[{ required: true }]}>
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} prefix="₹" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="description" label="Description" rules={[{ required: true }]}>
+            <Input placeholder="e.g. Rent payment, Loading charges..." />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="reference" label="Reference / UTR No.">
+                <Input placeholder="Cheque/UTR number" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="bankAccount" label="Bank Account">
+                <Input placeholder="e.g. SBI Current A/c" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={2} placeholder="Additional notes for CA..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="Edit Journal Entry" open={!!editRow} onCancel={() => { setEditRow(null); editForm.resetFields() }}
+        onOk={() => editForm.submit()} okText="Save Changes" confirmLoading={updateEntry.isPending}>
+        <Form form={editForm} layout="vertical" onFinish={handleEdit} style={{ marginTop: 16 }}>
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="entryDate" label="Date" rules={[{ required: true }]}>
@@ -596,18 +759,43 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
   )
 }
 
+// Quick date presets — Indian FY runs Apr 1 → Mar 31
+function getDatePresets(): { label: string; range: [Dayjs, Dayjs] }[] {
+  const now = dayjs()
+  const fyStartYear = now.month() >= 3 ? now.year() : now.year() - 1
+  const fyStart = dayjs(`${fyStartYear}-04-01`)
+  const fyEnd = dayjs(`${fyStartYear + 1}-03-31`)
+  const lastFyStart = dayjs(`${fyStartYear - 1}-04-01`)
+  const lastFyEnd = dayjs(`${fyStartYear}-03-31`)
+  return [
+    { label: 'This Month', range: [now.startOf('month'), now.endOf('month')] },
+    { label: 'Last Month', range: [now.subtract(1, 'month').startOf('month'), now.subtract(1, 'month').endOf('month')] },
+    { label: 'This Quarter', range: [now.startOf('quarter'), now.endOf('quarter')] },
+    { label: `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`, range: [fyStart, fyEnd] },
+    { label: `FY ${fyStartYear - 1}-${String(fyStartYear).slice(2)}`, range: [lastFyStart, lastFyEnd] },
+  ]
+}
+
 // ── Main LedgerPage ───────────────────────────────────────────────────────────
 export default function LedgerPage() {
-  const [from, setFrom] = useState<string | null>(null)
-  const [to, setTo] = useState<string | null>(null)
+  const [range, setRange] = useState<[Dayjs | null, Dayjs | null]>([null, null])
+  const [from, to] = [
+    range[0]?.format('YYYY-MM-DD') ?? null,
+    range[1]?.format('YYYY-MM-DD') ?? null,
+  ]
   const params: any = {}
   if (from) params.from = from
   if (to) params.to = to
 
-  const { data, isLoading, refetch } = useLedgerSummary(params)
+  const { data, refetch } = useLedgerSummary(params)
   const dateLabel = from && to
     ? `${dayjs(from).format('DD MMM YYYY')} to ${dayjs(to).format('DD MMM YYYY')}`
     : 'All dates'
+
+  const presets = useMemo(() => getDatePresets(), [])
+  const deliveries = data?.deliveries ?? []
+  const salesCount = deliveries.filter((d: any) => Number(d.saleValue ?? 0) > 0).length
+  const purchaseCount = deliveries.filter((d: any) => Number(d.purchaseValue ?? 0) > 0).length
 
   const tabItems = [
     {
@@ -617,12 +805,12 @@ export default function LedgerPage() {
     },
     {
       key: 'sales',
-      label: `Sales (${data?.deliveries?.length ?? 0})`,
+      label: `Sales (${salesCount})`,
       children: <SalesTab data={data} />,
     },
     {
       key: 'purchases',
-      label: `Purchases (${data?.deliveries?.length ?? 0})`,
+      label: `Purchases (${purchaseCount})`,
       children: <PurchasesTab data={data} />,
     },
     {
@@ -644,16 +832,29 @@ export default function LedgerPage() {
           <Title level={4} style={{ margin: 0 }}>Ledger</Title>
           <Text type="secondary" style={{ fontSize: 12 }}>Complete financial ledger for tax audit — share with your Chartered Accountant</Text>
         </div>
-        <RangePicker
-          format="DD/MM/YYYY"
-          style={{ width: 260 }}
-          onChange={(dates) => {
-            setFrom(dates?.[0]?.format('YYYY-MM-DD') ?? null)
-            setTo(dates?.[1]?.format('YYYY-MM-DD') ?? null)
-          }}
-          allowClear
-          placeholder={['From date', 'To date']}
-        />
+        <Space wrap size={6}>
+          {presets.map(p => {
+            const active = range[0]?.isSame(p.range[0], 'day') && range[1]?.isSame(p.range[1], 'day')
+            return (
+              <Button
+                key={p.label}
+                size="small"
+                type={active ? 'primary' : 'default'}
+                onClick={() => setRange(p.range)}
+              >
+                {p.label}
+              </Button>
+            )
+          })}
+          <RangePicker
+            format="DD/MM/YYYY"
+            style={{ width: 260 }}
+            value={range[0] && range[1] ? [range[0], range[1]] : undefined}
+            onChange={(dates) => setRange([dates?.[0] ?? null, dates?.[1] ?? null])}
+            allowClear
+            placeholder={['From date', 'To date']}
+          />
+        </Space>
       </div>
 
       <SummaryCards data={data} />

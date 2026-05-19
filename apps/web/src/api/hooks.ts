@@ -314,6 +314,15 @@ export const useDeleteLedgerEntry = () => {
   })
 }
 
+export const useUpdateLedgerEntry = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) =>
+      api.put(`/ledger/entries/${id}`, data).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ledger'] }),
+  })
+}
+
 // Invoices
 export const useInvoices = (params?: any) =>
   useQuery({ queryKey: ['invoices', params], queryFn: () => api.get('/invoices', { params }).then(r => r.data) })

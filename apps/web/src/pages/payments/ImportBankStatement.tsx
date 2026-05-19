@@ -67,7 +67,20 @@ function extractName(remarks: string): string {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export default function ImportBankStatement({ onDone }: { onDone: () => void }) {
+// saveAs controls what each parsed row becomes when saved:
+//   'payment' (default) — Dr → SupplierPayment, Cr → CustomerReceipt
+//                          (requires mapping each row to a supplier/customer)
+//   'ledger'  — Dr → LedgerEntry DEBIT, Cr → LedgerEntry CREDIT
+//                          (no mapping; rows save straight from preview)
+export default function ImportBankStatement({
+  onDone,
+  saveAs = 'payment',
+  buttonLabel,
+}: {
+  onDone: () => void
+  saveAs?: 'payment' | 'ledger'
+  buttonLabel?: string
+}) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [rows, setRows] = useState<MappedRow[]>([])
@@ -166,42 +179,65 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
       return
     }
 
-    const validMode = (m: string) => ['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(m) ? m : 'NEFT'
-
-    const toDebitRow = (r: MappedRow) => ({
-      supplierId: r.supplierId ?? null,
-      amount: r.withdrawal,
-      paymentMode: validMode(r.mode),
-      paymentDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
-      referenceNumber: r.tranId || '',
-      paidTo: r.paidTo || null,
-      accountRef: r.accountRef || null,
-      bankRef: r.tranId || null,
-      notes: r.remarks.substring(0, 200),
-    })
-
-    const toCreditRow = (r: MappedRow) => ({
-      customerId: r.customerId ?? null,
-      amount: r.deposit,
-      paymentMode: validMode(r.mode),
-      receiptDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
-      referenceNumber: r.tranId || '',
-      paidTo: r.paidTo || null,
-      accountRef: r.accountRef || null,
-      bankRef: r.tranId || null,
-      notes: r.remarks.substring(0, 200),
-    })
-
     setSaving(true)
     let saved = 0, duplicates = 0, failed = 0
 
     try {
-      const [debitRes, creditRes] = await Promise.all([
-        debits.length  ? api.post('/payments/supplier/bulk', { rows: debits.map(toDebitRow) })  : null,
-        credits.length ? api.post('/payments/customer/bulk', { rows: credits.map(toCreditRow) }) : null,
-      ])
-      saved     += (debitRes?.data?.saved  ?? 0) + (creditRes?.data?.saved  ?? 0)
-      duplicates += (debitRes?.data?.duplicates ?? 0) + (creditRes?.data?.duplicates ?? 0)
+      if (saveAs === 'ledger') {
+        // Each bank line → one LedgerEntry. Dr = DEBIT, Cr = CREDIT.
+        // POST endpoint is per-entry, so loop. Most bank imports are <100 rows.
+        for (const r of toSave) {
+          const amount = r.withdrawal || r.deposit
+          const type = r.withdrawal > 0 ? 'DEBIT' : 'CREDIT'
+          try {
+            await api.post('/ledger/entries', {
+              entryDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
+              type,
+              category: 'BANK_TRANSFER',
+              amount,
+              description: r.paidTo || r.remarks.substring(0, 100),
+              reference: r.tranId || '',
+              bankAccount: '',
+              notes: r.remarks.substring(0, 200),
+              source: 'BANK_IMPORT',
+            })
+            saved++
+          } catch {
+            failed++
+          }
+        }
+      } else {
+        const validMode = (m: string) => ['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(m) ? m : 'NEFT'
+        const toDebitRow = (r: MappedRow) => ({
+          supplierId: r.supplierId ?? null,
+          amount: r.withdrawal,
+          paymentMode: validMode(r.mode),
+          paymentDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
+          referenceNumber: r.tranId || '',
+          paidTo: r.paidTo || null,
+          accountRef: r.accountRef || null,
+          bankRef: r.tranId || null,
+          notes: r.remarks.substring(0, 200),
+        })
+        const toCreditRow = (r: MappedRow) => ({
+          customerId: r.customerId ?? null,
+          amount: r.deposit,
+          paymentMode: validMode(r.mode),
+          receiptDate: r.txnDate || dayjs().format('YYYY-MM-DD'),
+          referenceNumber: r.tranId || '',
+          paidTo: r.paidTo || null,
+          accountRef: r.accountRef || null,
+          bankRef: r.tranId || null,
+          notes: r.remarks.substring(0, 200),
+        })
+
+        const [debitRes, creditRes] = await Promise.all([
+          debits.length  ? api.post('/payments/supplier/bulk', { rows: debits.map(toDebitRow) })  : null,
+          credits.length ? api.post('/payments/customer/bulk', { rows: credits.map(toCreditRow) }) : null,
+        ])
+        saved      += (debitRes?.data?.saved      ?? 0) + (creditRes?.data?.saved      ?? 0)
+        duplicates += (debitRes?.data?.duplicates ?? 0) + (creditRes?.data?.duplicates ?? 0)
+      }
     } catch (e: any) {
       failed++
       antMessage.error(`Save failed: ${e?.response?.data?.error ?? e?.message}`)
@@ -210,7 +246,8 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
     setSaving(false)
     if (saved)      antMessage.success(`${saved} transaction${saved !== 1 ? 's' : ''} imported`)
     if (duplicates) antMessage.warning(`${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped (already imported)`)
-    if (!failed) {
+    if (failed && saved === 0) antMessage.error(`Save failed for ${failed} row${failed !== 1 ? 's' : ''}`)
+    if (!failed || saved > 0) {
       setImportOpen(false)
       setPreviewOpen(false)
       setRows([])
@@ -356,7 +393,7 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
         beforeUpload={file => { handleFile(file); return false }}
       >
         <Button icon={<BankOutlined />} loading={parsing}>
-          Import Bank Statement
+          {buttonLabel ?? 'Import Bank Statement'}
         </Button>
       </Upload>
 
@@ -375,13 +412,24 @@ export default function ImportBankStatement({ onDone }: { onDone: () => void }) 
             </Text>
             <Space>
               <Button onClick={() => { setPreviewOpen(false); setRows([]) }}>Cancel</Button>
-              <Button
-                type="primary"
-                disabled={!rows.some(r => r.selected && (r.withdrawal > 0 || r.deposit > 0))}
-                onClick={() => { setPreviewOpen(false); setImportOpen(true) }}
-              >
-                Map & Import Selected →
-              </Button>
+              {saveAs === 'ledger' ? (
+                <Button
+                  type="primary"
+                  loading={saving}
+                  disabled={!rows.some(r => r.selected && (r.withdrawal > 0 || r.deposit > 0))}
+                  onClick={handleSave}
+                >
+                  Save {rows.filter(r => r.selected && (r.withdrawal > 0 || r.deposit > 0)).length} as Journal Entries
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  disabled={!rows.some(r => r.selected && (r.withdrawal > 0 || r.deposit > 0))}
+                  onClick={() => { setPreviewOpen(false); setImportOpen(true) }}
+                >
+                  Map & Import Selected →
+                </Button>
+              )}
             </Space>
           </Space>
         }

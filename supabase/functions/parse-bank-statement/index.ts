@@ -392,6 +392,240 @@ function parseBankStatement(text: string): {
   }
 }
 
+// ── Excel / CSV parsing ──────────────────────────────────────────────────────
+//
+// Strategy: convert sheet → array-of-arrays, find the header row by looking
+// for known column-name keywords, then map each subsequent row.
+//
+// First attempt ICICI's exact column layout:
+//   S No | Tran Id | Value Date | Transaction Date | Transaction Posted |
+//   Cheque no | Description | Cr/Dr | Transaction Amount(INR) | Available Balance(INR)
+// Fall back to generic detection: find Date / Description-or-Narration /
+// Withdrawal-or-Debit / Deposit-or-Credit / Balance columns regardless of order.
+
+const HEADER_ALIASES = {
+  date: ['transaction date', 'txn date', 'value date', 'date', 'posting date', 'tran date'],
+  posted: ['transaction posted', 'posted on', 'posted date'],
+  tranId: ['tran id', 'transaction id', 'ref no', 'reference no', 'cheque no', 'instrument id'],
+  description: ['description', 'narration', 'remarks', 'particulars', 'transaction details'],
+  crDr: ['cr/dr', 'cr / dr', 'dr/cr', 'type'],
+  amount: ['transaction amount(inr)', 'transaction amount', 'amount', 'amount (inr)', 'amt'],
+  withdrawal: ['withdrawal', 'withdrawal amount', 'withdrawal(inr)', 'withdrawal amt', 'debit', 'debit amount', 'debit(inr)', 'dr amount', 'dr'],
+  deposit: ['deposit', 'deposit amount', 'deposit(inr)', 'deposit amt', 'credit', 'credit amount', 'credit(inr)', 'cr amount', 'cr'],
+  balance: ['available balance(inr)', 'available balance', 'balance', 'balance(inr)', 'running balance', 'closing balance'],
+} as const
+
+type HeaderKey = keyof typeof HEADER_ALIASES
+
+function normaliseHeader(s: any): string {
+  return String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function findColumnIndex(headerRow: any[], key: HeaderKey): number {
+  const aliases = HEADER_ALIASES[key]
+  const headers = headerRow.map(normaliseHeader)
+  for (const alias of aliases) {
+    const idx = headers.indexOf(alias)
+    if (idx >= 0) return idx
+  }
+  // Loose contains match as fallback
+  for (let i = 0; i < headers.length; i++) {
+    for (const alias of aliases) {
+      if (headers[i] && headers[i].includes(alias)) return i
+    }
+  }
+  return -1
+}
+
+function findHeaderRow(rows: any[][]): { headerIdx: number; map: Partial<Record<HeaderKey, number>> } | null {
+  // Scan first 30 rows for one that has at least Date + (Amount OR Withdrawal/Deposit) + Description
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const r = rows[i]
+    if (!r || r.length < 3) continue
+    const map: Partial<Record<HeaderKey, number>> = {}
+    for (const key of Object.keys(HEADER_ALIASES) as HeaderKey[]) {
+      const idx = findColumnIndex(r, key)
+      if (idx >= 0) map[key] = idx
+    }
+    const hasDate = map.date !== undefined
+    const hasAmount = map.amount !== undefined || (map.withdrawal !== undefined && map.deposit !== undefined)
+    const hasDesc = map.description !== undefined
+    if (hasDate && hasAmount && hasDesc) return { headerIdx: i, map }
+  }
+  return null
+}
+
+function excelDateToISO(v: any): string {
+  if (v == null || v === '') return ''
+  if (typeof v === 'number') {
+    // Excel serial date — days since 1899-12-30
+    const ms = Math.round((v - 25569) * 86400 * 1000)
+    const d = new Date(ms)
+    if (!isNaN(d.getTime())) {
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    }
+  }
+  const s = String(v).trim()
+  // DD/Mon/YYYY or DD-Mon-YYYY
+  const iso1 = parseDate(s)
+  if (iso1) return iso1
+  // DD/MM/YYYY or DD-MM-YYYY
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)
+  if (m) {
+    const yyyy = m[3].length === 2 ? `20${m[3]}` : m[3]
+    return `${yyyy}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  }
+  // YYYY-MM-DD already
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  return ''
+}
+
+function toNumber(v: any): number {
+  if (v == null || v === '') return 0
+  if (typeof v === 'number') return v
+  return parseFloat(String(v).replace(/[^0-9.\-]/g, '')) || 0
+}
+
+function detectMode(desc: string): string {
+  const u = desc.toUpperCase()
+  if (/\bUPI\b/.test(u)) return 'UPI'
+  if (/\bRTGS\b/.test(u)) return 'RTGS'
+  if (/\b(NEFT|INFT)\b/.test(u)) return 'NEFT'
+  if (/\b(IMPS|MMT)\b/.test(u)) return 'IMPS'
+  if (/\bCHEQUE\b|\bCHQ\b/.test(u)) return 'CHEQUE'
+  if (/\bCASH\b/.test(u)) return 'CASH'
+  return 'OTHER'
+}
+
+function parseSheet(rows: any[][]): {
+  rows: TxnRow[]
+  summary: Summary | null
+  reconciliation: any
+  debug: string
+} {
+  const hdr = findHeaderRow(rows)
+  if (!hdr) {
+    return {
+      rows: [],
+      summary: null,
+      reconciliation: {
+        parsedWithdrawals: 0, parsedDeposits: 0,
+        summaryWithdrawals: null, summaryDeposits: null,
+        withdrawalsMatch: false, depositsMatch: false, netMatch: false,
+      },
+      debug: 'No recognisable header row found. Looked for Date + Description + (Amount or Dr/Cr) columns.',
+    }
+  }
+
+  const { headerIdx, map } = hdr
+  const out: TxnRow[] = []
+  let si = 0
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i]
+    if (!r || r.every(c => c == null || String(c).trim() === '')) continue
+
+    const txnDate = excelDateToISO(r[map.date!])
+    if (!txnDate) continue
+
+    const description = String(r[map.description!] ?? '').trim()
+    if (!description) continue
+
+    let withdrawal = 0
+    let deposit = 0
+
+    if (map.withdrawal !== undefined && map.deposit !== undefined) {
+      // Separate Dr / Cr columns
+      withdrawal = toNumber(r[map.withdrawal])
+      deposit = toNumber(r[map.deposit])
+    } else if (map.amount !== undefined && map.crDr !== undefined) {
+      // Single amount column + Cr/Dr indicator
+      const amt = Math.abs(toNumber(r[map.amount]))
+      const flag = String(r[map.crDr] ?? '').toUpperCase().trim()
+      if (flag === 'CR' || flag.startsWith('C')) deposit = amt
+      else withdrawal = amt
+    } else if (map.amount !== undefined) {
+      // Single signed amount column
+      const amt = toNumber(r[map.amount])
+      if (amt >= 0) deposit = amt
+      else withdrawal = -amt
+    }
+
+    if (!withdrawal && !deposit) continue
+
+    si++
+    const balance = map.balance !== undefined ? toNumber(r[map.balance]) : 0
+    const tranId = map.tranId !== undefined ? String(r[map.tranId] ?? '').trim() : ''
+    const mode = detectMode(description)
+    const { paidTo, accountRef } = extractBeneficiary(description)
+
+    out.push({
+      si,
+      tranId: tranId || `XLS-${i}`,
+      txnDate,
+      remarks: description.slice(0, 300),
+      paidTo,
+      accountRef,
+      withdrawal,
+      deposit,
+      balance,
+      mode,
+    })
+  }
+
+  const parsedWithdrawals = out.reduce((s, r) => s + r.withdrawal, 0)
+  const parsedDeposits = out.reduce((s, r) => s + r.deposit, 0)
+
+  return {
+    rows: out,
+    summary: null,
+    reconciliation: {
+      parsedWithdrawals: +parsedWithdrawals.toFixed(2),
+      parsedDeposits: +parsedDeposits.toFixed(2),
+      summaryWithdrawals: null,
+      summaryDeposits: null,
+      withdrawalsMatch: false,
+      depositsMatch: false,
+      netMatch: false,
+    },
+    debug: `Excel/CSV: header at row ${headerIdx + 1}; columns mapped → ${JSON.stringify(map)}; ${out.length} transactions parsed.`,
+  }
+}
+
+async function parseExcel(bytes: Uint8Array): Promise<any[][]> {
+  // @ts-ignore esm.sh dynamic import
+  const XLSX: any = await import('https://esm.sh/xlsx@0.18.5')
+  const wb = XLSX.read(bytes, { type: 'array', cellDates: false })
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true }) as any[][]
+}
+
+function parseCSV(text: string): any[][] {
+  const lines = text.split(/\r?\n/)
+  const rows: any[][] = []
+  for (const line of lines) {
+    if (!line.trim()) continue
+    // Simple CSV — split on commas, honour double quotes
+    const cells: string[] = []
+    let cur = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === ',' && !inQuotes) {
+        cells.push(cur); cur = ''
+      } else {
+        cur += ch
+      }
+    }
+    cells.push(cur)
+    rows.push(cells.map(c => c.trim()))
+  }
+  return rows
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return corsResponse()
 
@@ -402,6 +636,7 @@ Deno.serve(async (req) => {
 
   const contentType = req.headers.get('content-type') || ''
   let bytes: Uint8Array
+  let filename = ''
 
   try {
     if (contentType.includes('multipart/form-data')) {
@@ -409,10 +644,31 @@ Deno.serve(async (req) => {
       const file = form.get('file') as File | null
       if (!file) return error('No file uploaded', 400)
       bytes = new Uint8Array(await file.arrayBuffer())
+      filename = file.name || ''
     } else {
       bytes = new Uint8Array(await req.arrayBuffer())
     }
 
+    const lowerName = filename.toLowerCase()
+    const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
+    const isCsv = lowerName.endsWith('.csv')
+
+    if (isExcel || isCsv) {
+      const sheetRows = isExcel
+        ? await parseExcel(bytes)
+        : parseCSV(new TextDecoder().decode(bytes))
+      const result = parseSheet(sheetRows)
+      return json({
+        rows: result.rows,
+        count: result.rows.length,
+        summary: result.summary,
+        reconciliation: result.reconciliation,
+        debug: result.debug,
+        flatSample: '',
+      })
+    }
+
+    // Default: PDF
     const text = await extractPdfText(bytes)
     const result = parseBankStatement(text)
 
