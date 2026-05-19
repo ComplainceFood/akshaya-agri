@@ -86,15 +86,9 @@ export default function AppLayout() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={220} className="app-sider" style={{ position: 'fixed', height: '100vh', left: 0, zIndex: 100, overflowY: 'auto' }}>
-        {/* Brand */}
+        {/* Brand — wide horizontal logo, no surrounding text */}
         <div className="brand-block">
-          <div className="brand-block-logo">
-            <img src={BRAND.logoUrl} alt={BRAND.name} />
-          </div>
-          <div>
-            <div className="brand-block-name">Akshaya Agri</div>
-            <div className="brand-block-tagline">Solutions</div>
-          </div>
+          <img src={BRAND.logoUrl} alt={BRAND.name} className="brand-block-logo-img" />
         </div>
 
         {/* Nav sections */}

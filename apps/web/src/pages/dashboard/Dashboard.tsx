@@ -19,7 +19,9 @@ const fmtCr = (v: number) => {
 }
 const todayStr = dayjs().format('YYYY-MM-DD')
 
-const PIE_COLORS = ['#2e7d32', '#43a047', '#66bb6a', '#a5d6a7', '#1b5e20', '#81c784', '#388e3c', '#c8e6c9']
+// Distinct, brand-aligned palette: brand green + bronze accent, then a range
+// of harmonious hues so slices are easy to tell apart.
+const PIE_COLORS = ['#2e7d32', '#8b6f47', '#1677ff', '#d97706', '#9333ea', '#0891b2', '#dc2626', '#475569']
 
 function StatCard({ title, value, color, prefix, suffix, sub }: {
   title: string; value: string; color?: string
@@ -99,16 +101,16 @@ function MonthlyTrendChart({ data }: { data: any[] }) {
         <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="colorSale" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#2e7d32" stopOpacity={0.15} />
+              <stop offset="5%" stopColor="#2e7d32" stopOpacity={0.18} />
               <stop offset="95%" stopColor="#2e7d32" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorPurchase" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#1677ff" stopOpacity={0.15} />
-              <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+              <stop offset="5%" stopColor="#8b6f47" stopOpacity={0.18} />
+              <stop offset="95%" stopColor="#8b6f47" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorMargin" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#fa8c16" stopOpacity={0.2} />
-              <stop offset="95%" stopColor="#fa8c16" stopOpacity={0} />
+              <stop offset="5%" stopColor="#1677ff" stopOpacity={0.18} />
+              <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -116,9 +118,9 @@ function MonthlyTrendChart({ data }: { data: any[] }) {
           <YAxis tickFormatter={fmtCr} tick={{ fontSize: 10 }} width={48} />
           <Tooltip formatter={(v: any, name: any) => [formatINR(Number(v ?? 0)), String(name ?? '')]} labelStyle={{ fontWeight: 600 }} />
           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-          <Area type="monotone" dataKey="Purchase" stroke="#1677ff" strokeWidth={2} fill="url(#colorPurchase)" dot={false} />
+          <Area type="monotone" dataKey="Purchase" stroke="#8b6f47" strokeWidth={2} fill="url(#colorPurchase)" dot={false} />
           <Area type="monotone" dataKey="Sale" stroke="#2e7d32" strokeWidth={2} fill="url(#colorSale)" dot={false} />
-          <Area type="monotone" dataKey="Margin" stroke="#fa8c16" strokeWidth={2} fill="url(#colorMargin)" dot={false} />
+          <Area type="monotone" dataKey="Margin" stroke="#1677ff" strokeWidth={2} fill="url(#colorMargin)" dot={false} />
         </AreaChart>
       </ResponsiveContainer>
     </Card>
@@ -134,7 +136,7 @@ function DailyVolumeChart({ data }: { data: any[] }) {
     positive: d.margin >= 0,
   }))
   return (
-    <Card size="small" title={<><BarChartOutlined style={{ color: '#1677ff', marginRight: 6 }} />Last 30 Days - Daily Sale & Margin</>} style={{ height: '100%' }}>
+    <Card size="small" title={<><BarChartOutlined style={{ color: '#2e7d32', marginRight: 6 }} />Last 30 Days - Daily Sale & Margin</>} style={{ height: '100%' }}>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barGap={2}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
@@ -142,7 +144,7 @@ function DailyVolumeChart({ data }: { data: any[] }) {
           <YAxis tickFormatter={fmtCr} tick={{ fontSize: 10 }} width={48} />
           <Tooltip formatter={(v: any, name: any) => [formatINR(Number(v ?? 0)), String(name ?? '')]} labelStyle={{ fontWeight: 600 }} />
           <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="Sale Value" fill="#a5d6a7" radius={[2, 2, 0, 0]} maxBarSize={18} />
+          <Bar dataKey="Sale Value" fill="#c8e6c9" radius={[2, 2, 0, 0]} maxBarSize={18} />
           <Bar dataKey="Margin" radius={[2, 2, 0, 0]} maxBarSize={18}>
             {chartData.map((entry, i) => (
               <Cell key={i} fill={entry.positive ? '#2e7d32' : '#cf1322'} />
@@ -170,7 +172,7 @@ function CommodityDonut({ data }: { data: any[] }) {
   }
 
   return (
-    <Card size="small" title={<><DollarOutlined style={{ color: '#fa8c16', marginRight: 6 }} />Commodity-wise Sale Value</>} style={{ height: '100%' }}>
+    <Card size="small" title={<><DollarOutlined style={{ color: '#8b6f47', marginRight: 6 }} />Commodity-wise Sale Value</>} style={{ height: '100%' }}>
       <ResponsiveContainer width="100%" height={220}>
         <PieChart>
           <Pie data={chartData} dataKey="saleValue" nameKey="name" cx="45%" cy="50%"
@@ -284,7 +286,7 @@ export default function Dashboard() {
       <SectionLabel><CarOutlined /> Today</SectionLabel>
       <Row gutter={[12, 12]} style={{ marginBottom: 4 }}>
         <Col xs={12} sm={8} lg={4}>
-          <StatCard title="Deliveries" value={String(data.today.deliveryCount)} color="#1677ff" prefix={<CarOutlined />} />
+          <StatCard title="Deliveries" value={String(data.today.deliveryCount)} color="#8b6f47" prefix={<CarOutlined />} />
         </Col>
         <Col xs={12} sm={8} lg={5}>
           <StatCard title="Weight In" value={fmtKg(data.today.totalWeightQt)} />
