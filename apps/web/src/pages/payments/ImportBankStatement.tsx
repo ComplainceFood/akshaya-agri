@@ -207,7 +207,7 @@ export default function ImportBankStatement({
           }
         }
       } else {
-        const validMode = (m: string) => ['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH'].includes(m) ? m : 'NEFT'
+        const validMode = (m: string) => ['NEFT','RTGS','IMPS','UPI','CHEQUE','CASH','OTHER'].includes(m) ? m : 'OTHER'
         const toDebitRow = (r: MappedRow) => ({
           supplierId: r.supplierId ?? null,
           amount: r.withdrawal,
