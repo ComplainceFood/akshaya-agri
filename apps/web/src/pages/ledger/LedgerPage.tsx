@@ -71,7 +71,7 @@ async function openPrint(title: string, subtitle: string, body: string) {
     <div class="pdf-title">${title}</div>
     <div class="pdf-subtitle">${subtitle}</div>
     ${body}
-    <div class="pdf-footer"><span>${BRAND.name} | Confidential — Tax Audit Document</span><span>Printed: ${dayjs().format('DD/MM/YYYY')}</span></div>
+    <div class="pdf-footer"><span>${BRAND.name} | Confidential - Tax Audit Document</span><span>Printed: ${dayjs().format('DD/MM/YYYY')}</span></div>
   </body></html>`)
   w.document.close()
   setTimeout(() => w.print(), 400)
@@ -759,7 +759,7 @@ function TaxSummaryTab({ data, dateLabel }: { data: any; dateLabel: string }) {
   )
 }
 
-// Quick date presets — Indian FY runs Apr 1 → Mar 31
+// Quick date presets - Indian FY runs Apr 1 → Mar 31
 function getDatePresets(): { label: string; range: [Dayjs, Dayjs] }[] {
   const now = dayjs()
   const fyStartYear = now.month() >= 3 ? now.year() : now.year() - 1
@@ -830,7 +830,7 @@ export default function LedgerPage() {
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>Ledger</Title>
-          <Text type="secondary" style={{ fontSize: 12 }}>Complete financial ledger for tax audit — share with your Chartered Accountant</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>Complete financial ledger for tax audit - share with your Chartered Accountant</Text>
         </div>
         <Space wrap size={6}>
           {presets.map(p => {

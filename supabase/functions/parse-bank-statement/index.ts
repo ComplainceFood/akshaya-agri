@@ -220,7 +220,7 @@ function parseBankStatement(text: string): {
   let flat = text.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ')
 
   // Glue split posted datetime "01-Apr-202" + "6 09:46:39 AM" → "01-Apr-2026 09:46:39 AM"
-  // This is the ONE glue pass that matters — posted-datetime is our row anchor.
+  // This is the ONE glue pass that matters - posted-datetime is our row anchor.
   flat = flat.replace(/(\d{2}-[A-Za-z]{3,9}-\d{1,3})\s+(\d{1,3})\s+(\d{2}:\d{2}:\d{2}\s*[AP]M)/g,
     (m, a, b, t) => /\d{4}$/.test(a + b) ? `${a}${b} ${t}` : m)
 
@@ -232,7 +232,7 @@ function parseBankStatement(text: string): {
 
   const flatFixed = normaliseAmounts(flat)
 
-  // 2. Find every posted-datetime — one per row ─────────────────────────────
+  // 2. Find every posted-datetime - one per row ─────────────────────────────
   const postedRe = /\b(\d{2})-([A-Za-z]{3,9})-(\d{4})\s+(\d{2}:\d{2}:\d{2})\s*([AP]M)\b/g
   const posted: Array<{ index: number; length: number; isoDate: string }> = []
   let pm: RegExpExecArray | null
@@ -287,7 +287,7 @@ function parseBankStatement(text: string): {
       }
     }
 
-    // Validate TranID — must be S + at least 4 digits to count as real row
+    // Validate TranID - must be S + at least 4 digits to count as real row
     if (!tranId || !/^S\d{4,}$/.test(tranId)) continue
 
     // De-dupe: page-break reprints emit the same posted-datetime + TranID twice
@@ -335,7 +335,7 @@ function parseBankStatement(text: string): {
     else if (/^RTGS/.test(ru) || /RTGS\//.test(ru)) mode = 'RTGS'
     else if (/^(MMT|IMPS)/.test(ru)) mode = 'IMPS'
 
-    // Dr vs Cr classification — inward credits have specific prefixes
+    // Dr vs Cr classification - inward credits have specific prefixes
     const isCredit =
       /NEFT.?RETURN/i.test(remarks) ||
       /RTGS.?RETURN/i.test(remarks) ||
@@ -458,7 +458,7 @@ function findHeaderRow(rows: any[][]): { headerIdx: number; map: Partial<Record<
 function excelDateToISO(v: any): string {
   if (v == null || v === '') return ''
   if (typeof v === 'number') {
-    // Excel serial date — days since 1899-12-30
+    // Excel serial date - days since 1899-12-30
     const ms = Math.round((v - 25569) * 86400 * 1000)
     const d = new Date(ms)
     if (!isNaN(d.getTime())) {
@@ -605,7 +605,7 @@ function parseCSV(text: string): any[][] {
   const rows: any[][] = []
   for (const line of lines) {
     if (!line.trim()) continue
-    // Simple CSV — split on commas, honour double quotes
+    // Simple CSV - split on commas, honour double quotes
     const cells: string[] = []
     let cur = ''
     let inQuotes = false

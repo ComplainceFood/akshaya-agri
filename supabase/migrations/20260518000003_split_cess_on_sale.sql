@@ -14,7 +14,7 @@
 --   netPayable  = purchaseValue − mcDeduction − cessOnSale − balanceCess
 --   grossMargin = saleValue − netPayable     (which simplifies to grossSale − purchaseValue)
 
--- 1. Add cessOnSale column (NUMERIC(12,2), nullable — populated only when saleRate is known)
+-- 1. Add cessOnSale column (NUMERIC(12,2), nullable - populated only when saleRate is known)
 ALTER TABLE "Delivery"
   ADD COLUMN IF NOT EXISTS "cessOnSale" NUMERIC(12,2);
 

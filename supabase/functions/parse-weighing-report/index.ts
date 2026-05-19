@@ -7,7 +7,7 @@ import { requireAuth } from '../_shared/auth.ts'
 //
 // Both old and new formats share the same column layout (Gross/Tare/Net positions).
 // New format adds a 3rd header row (Load Type / No of Bags / Amount) but weight data
-// is still in the same columns — one weight glued to inDate, others standalone before it.
+// is still in the same columns - one weight glued to inDate, others standalone before it.
 //   Old: "21110 11940 917001-May-26" → standalones 21110,11940; glued 9170
 //   New: "460 36790 10720 2607004-May-26" → standalones 36790,10720 (460=bags,filtered); glued 26070
 //
@@ -59,7 +59,7 @@ function parseRows(text: string): any[] {
     const vehicleNumber = truckMatch?.[1] || ''
 
     // Standalone weights: 4-6 digit numbers before inDate
-    // In new format these include bags count (e.g. 460) and amount (e.g. 0) — filter by plausible
+    // In new format these include bags count (e.g. 460) and amount (e.g. 0) - filter by plausible
     // weight range (>= 1000 kg) to exclude those small values
     const beforeInDate = inDate ? weightZone.slice(0, weightZone.indexOf(inDate)) : weightZone.slice(0, 80)
     const standalones = [...beforeInDate.matchAll(/\b(\d{4,6})\b/g)]

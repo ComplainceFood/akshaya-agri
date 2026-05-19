@@ -9,7 +9,7 @@ export const BRAND = {
   primary: '#2e7d32',          // operational green (actions, links)
   primaryDark: '#1b5e20',
   primaryLight: '#43a047',
-  accent: '#8b6f47',           // bronze/brown — from the trident in the logo
+  accent: '#8b6f47',           // bronze/brown - from the trident in the logo
   accentDark: '#6b5230',
   ink: '#1a1a1a',              // body text
   inkSoft: '#555',

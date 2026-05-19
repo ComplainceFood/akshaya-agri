@@ -400,7 +400,7 @@ export default function PaymentsPage() {
       render: (_: any, r: any) =>
         r.supplier?.name ?? (
           r.paidTo
-            ? <span><Tooltip title="Unmapped — click edit to assign supplier"><ExclamationCircleFilled style={{ color: '#faad14', marginRight: 6 }} /></Tooltip>{r.paidTo}</span>
+            ? <span><Tooltip title="Unmapped - click edit to assign supplier"><ExclamationCircleFilled style={{ color: '#faad14', marginRight: 6 }} /></Tooltip>{r.paidTo}</span>
             : <span style={{ color: '#ccc' }}>-</span>
         ),
     },
@@ -431,7 +431,7 @@ export default function PaymentsPage() {
       render: (_: any, r: any) =>
         r.customer?.name ?? (
           r.paidTo
-            ? <span><Tooltip title="Unmapped — click edit to assign customer"><ExclamationCircleFilled style={{ color: '#faad14', marginRight: 6 }} /></Tooltip>{r.paidTo}</span>
+            ? <span><Tooltip title="Unmapped - click edit to assign customer"><ExclamationCircleFilled style={{ color: '#faad14', marginRight: 6 }} /></Tooltip>{r.paidTo}</span>
             : <span style={{ color: '#ccc' }}>-</span>
         ),
     },

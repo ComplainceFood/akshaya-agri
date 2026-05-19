@@ -1,7 +1,7 @@
 -- Remove cessOnSale (E1) from netPayable.
 --
 -- Rationale: cessOnSale is the customer's 1% deduction from us. It is NOT recovered
--- from the supplier — that would be a double-deduction (and would also wipe it
+-- from the supplier - that would be a double-deduction (and would also wipe it
 -- out of the margin entirely, since the same term would cancel between saleValue
 -- and netPayable). MC stays pass-through (the customer deducts MC from what they
 -- pay us, and we deduct the same MC from the supplier on netPayable). balanceCess

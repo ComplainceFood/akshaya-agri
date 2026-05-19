@@ -1,6 +1,6 @@
 -- Switch all rates from ₹/Quintal to ₹/Kg, and all stored weights from Quintal to Kg.
 -- Column names are intentionally NOT renamed (DailySaleRate.ratePerQuintal still
--- exists; Delivery.grossWeight/tareWeight/adjustedWeight/netWeight still exist) —
+-- exists; Delivery.grossWeight/tareWeight/adjustedWeight/netWeight still exist) -
 -- only what they MEAN changes. Application code is updated in the same release.
 --
 -- Mathematical invariant: rate_qt × weight_qt = rate_kg × weight_kg

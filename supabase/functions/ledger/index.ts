@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
 
-  // POST /ledger/entries — manual ledger entry (bank statement import will use this)
+  // POST /ledger/entries - manual ledger entry (bank statement import will use this)
   if (req.method === 'POST' && parts[parts.length - 1] === 'entries') {
     const body = await req.json()
     const now = new Date().toISOString()
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     return json(data, 201)
   }
 
-  // PUT /ledger/entries/:id — update a manual journal entry
+  // PUT /ledger/entries/:id - update a manual journal entry
   if (req.method === 'PUT' && parts[parts.indexOf('ledger') + 1] === 'entries') {
     const id = parts[parts.indexOf('entries') + 1]
     if (!id) return error('Missing entry id', 400)
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     return json({ success: true })
   }
 
-  // GET /ledger/summary — aggregated P&L for tax report
+  // GET /ledger/summary - aggregated P&L for tax report
   if (req.method === 'GET' && parts[parts.indexOf('ledger') + 1] === 'summary') {
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')

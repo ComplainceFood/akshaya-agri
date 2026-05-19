@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     return json(data)
   }
 
-  // POST /payments/supplier/bulk  — import many at once, returns {saved, duplicates, errors}
+  // POST /payments/supplier/bulk  - import many at once, returns {saved, duplicates, errors}
   if (req.method === 'POST' && isSupplier && thirdPart === 'bulk') {
     const { rows: items } = await req.json() as { rows: any[] }
     if (!Array.isArray(items) || !items.length) return error('No rows provided', 400)
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     return json(receipt, 201)
   }
 
-  // POST /payments/supplier/bulk-update  — { ids: string[], patch: Partial<SupplierPayment> }
+  // POST /payments/supplier/bulk-update  - { ids: string[], patch: Partial<SupplierPayment> }
   if (req.method === 'POST' && isSupplier && thirdPart === 'bulk-update') {
     const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
     if (roleCheck) return roleCheck
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
     return json({ updated: count ?? ids.length })
   }
 
-  // POST /payments/supplier/bulk-delete  — { ids: string[] }
+  // POST /payments/supplier/bulk-delete  - { ids: string[] }
   if (req.method === 'POST' && isSupplier && thirdPart === 'bulk-delete') {
     const roleCheck = requireRole(user.role, 'ADMIN', 'ACCOUNTS')
     if (roleCheck) return roleCheck

@@ -68,9 +68,9 @@ function extractName(remarks: string): string {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 // saveAs controls what each parsed row becomes when saved:
-//   'payment' (default) — Dr → SupplierPayment, Cr → CustomerReceipt
+//   'payment' (default) - Dr → SupplierPayment, Cr → CustomerReceipt
 //                          (requires mapping each row to a supplier/customer)
-//   'ledger'  — Dr → LedgerEntry DEBIT, Cr → LedgerEntry CREDIT
+//   'ledger'  - Dr → LedgerEntry DEBIT, Cr → LedgerEntry CREDIT
 //                          (no mapping; rows save straight from preview)
 export default function ImportBankStatement({
   onDone,
@@ -286,11 +286,11 @@ export default function ImportBankStatement({
     },
     {
       title: 'Dr (₹)', dataIndex: 'withdrawal', key: 'dr', width: 110, align: 'right' as const,
-      render: (v: number) => v ? <b style={{ color: '#cf1322' }}>{formatINR(v)}</b> : <span style={{ color: '#ccc' }}>—</span>,
+      render: (v: number) => v ? <b style={{ color: '#cf1322' }}>{formatINR(v)}</b> : <span style={{ color: '#ccc' }}>-</span>,
     },
     {
       title: 'Cr (₹)', dataIndex: 'deposit', key: 'cr', width: 110, align: 'right' as const,
-      render: (v: number) => v ? <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> : <span style={{ color: '#ccc' }}>—</span>,
+      render: (v: number) => v ? <b style={{ color: '#2e7d32' }}>{formatINR(v)}</b> : <span style={{ color: '#ccc' }}>-</span>,
     },
     {
       title: 'Type',
@@ -399,7 +399,7 @@ export default function ImportBankStatement({
 
       {/* ── STEP 1: Preview all rows, select what to import ── */}
       <Modal
-        title={<Space><EyeOutlined /> Preview — {rows.length} transactions found</Space>}
+        title={<Space><EyeOutlined /> Preview - {rows.length} transactions found</Space>}
         open={previewOpen}
         onCancel={() => { setPreviewOpen(false); setRows([]) }}
         width={1100}
@@ -442,7 +442,7 @@ export default function ImportBankStatement({
             message={
               recon.withdrawalsMatch && recon.depositsMatch
                 ? `Reconciled against statement totals: Dr ${formatINR(recon.parsedWithdrawals)} / Cr ${formatINR(recon.parsedDeposits)} match.`
-                : `Totals mismatch — some rows likely missed. Parsed Dr ${formatINR(recon.parsedWithdrawals)} vs statement ${formatINR(recon.summaryWithdrawals!)}; Parsed Cr ${formatINR(recon.parsedDeposits)} vs statement ${formatINR(recon.summaryDeposits!)}.`
+                : `Totals mismatch - some rows likely missed. Parsed Dr ${formatINR(recon.parsedWithdrawals)} vs statement ${formatINR(recon.summaryWithdrawals!)}; Parsed Cr ${formatINR(recon.parsedDeposits)} vs statement ${formatINR(recon.summaryDeposits!)}.`
             }
           />
         )}
