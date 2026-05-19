@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { BRAND, getLogoDataUri } from '../../utils/brand'
 
 // Converts a number to Indian words
 function toWords(amount: number): string {
@@ -26,9 +27,10 @@ function toWords(amount: number): string {
 
 interface InvoicePrintProps {
   inv: any
+  logoSrc?: string
 }
 
-export function InvoicePrint({ inv }: InvoicePrintProps) {
+export function InvoicePrint({ inv, logoSrc }: InvoicePrintProps) {
   const customer = inv?.customer ?? {}
   const commodity = inv?.commodity ?? {}
   const items = inv?.items ?? []
@@ -58,11 +60,18 @@ export function InvoicePrint({ inv }: InvoicePrintProps) {
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', color: '#222', fontSize: 12, maxWidth: 800, margin: '0 auto', background: '#fff' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '16px 20px 12px', borderBottom: '2px solid #1a3a6b' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ padding: '16px 20px 12px', borderBottom: '2px solid #1a3a6b' }}>
+        {logoSrc && (
+          <div style={{ textAlign: 'center', marginBottom: 10 }}>
+            <img src={logoSrc} alt={BRAND.name} crossOrigin="anonymous"
+              style={{ maxHeight: 70, maxWidth: 320, objectFit: 'contain' }} />
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#1a3a6b', letterSpacing: 1 }}>Akshaya Agri Solutions</div>
-            <div style={{ fontSize: 10, color: '#555', marginTop: 2 }}>Agri Commodities. Seamless Supply. Global Reach.</div>
+            {!logoSrc && (
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1a3a6b', letterSpacing: 1 }}>Akshaya Agri Solutions</div>
+            )}
             <div style={{ fontSize: 10, color: '#333', marginTop: 6, lineHeight: 1.6 }}>
               D. No 34-76, Srinagar Colony, Addanki,<br />
               Prakasam Dt, Andhra Pradesh 523201<br />
@@ -72,7 +81,6 @@ export function InvoicePrint({ inv }: InvoicePrintProps) {
               PAN: DZWPS2859P
             </div>
           </div>
-        </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 26, fontWeight: 700, color: '#1a3a6b', marginBottom: 4 }}>Tax Invoice</div>
           <div style={{ fontSize: 10, color: '#666', marginBottom: 12 }}>Original for recipient</div>
@@ -85,6 +93,7 @@ export function InvoicePrint({ inv }: InvoicePrintProps) {
               <tr><td style={{ color: '#666', paddingRight: 12, paddingBottom: 2 }}>Place of Supply</td><td style={{ fontWeight: 600 }}>Andhra Pradesh(37)</td></tr>
             </tbody>
           </table>
+        </div>
         </div>
       </div>
 
@@ -223,7 +232,8 @@ export function InvoicePrint({ inv }: InvoicePrintProps) {
   )
 }
 
-function renderInvoiceToContainer(inv: any): Promise<{ container: HTMLDivElement; unmount: () => void }> {
+async function renderInvoiceToContainer(inv: any): Promise<{ container: HTMLDivElement; unmount: () => void }> {
+  const logoSrc = await getLogoDataUri()
   return new Promise((resolve) => {
     const container = document.createElement('div')
     container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;background:#fff;'
@@ -232,7 +242,7 @@ function renderInvoiceToContainer(inv: any): Promise<{ container: HTMLDivElement
     import('react').then(React => {
       import('react-dom/client').then(({ createRoot }) => {
         const root = createRoot(container)
-        root.render(React.createElement(InvoicePrint, { inv }))
+        root.render(React.createElement(InvoicePrint, { inv, logoSrc: logoSrc || undefined }))
         setTimeout(() => resolve({
           container,
           unmount: () => { root.unmount(); document.body.removeChild(container) }

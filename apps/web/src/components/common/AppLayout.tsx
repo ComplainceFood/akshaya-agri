@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '../../store/auth'
 import { useDashboard } from '../../api/hooks'
+import { BRAND } from '../../utils/brand'
 import { useState } from 'react'
 
 const { Header, Sider, Content } = Layout
@@ -85,14 +86,14 @@ export default function AppLayout() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={220} className="app-sider" style={{ position: 'fixed', height: '100vh', left: 0, zIndex: 100, overflowY: 'auto' }}>
-        {/* Logo */}
-        <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg, #43a047, #1b5e20)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>🌾</div>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: 13.5, lineHeight: 1.2, letterSpacing: 0.2, fontFamily: 'Inter, sans-serif' }}>Akshaya Agri</div>
-              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, letterSpacing: 0.3, fontFamily: 'Inter, sans-serif' }}>Solutions</div>
-            </div>
+        {/* Brand */}
+        <div className="brand-block">
+          <div className="brand-block-logo">
+            <img src={BRAND.logoUrl} alt={BRAND.name} />
+          </div>
+          <div>
+            <div className="brand-block-name">Akshaya Agri</div>
+            <div className="brand-block-tagline">Solutions</div>
           </div>
         </div>
 
@@ -136,24 +137,30 @@ export default function AppLayout() {
 
       <Layout style={{ marginLeft: 220 }}>
         <Header className="app-header">
-          {/* Breadcrumb / page context */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Header stat pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
             {dashData && (
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div style={{ fontSize: 12, color: '#888' }}>
-                  Today: <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{dashData.today?.deliveryCount ?? 0} deliveries</span>
+              <>
+                <div style={{ fontSize: 12, color: '#7a8290', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, fontWeight: 600 }}>Today</span>
+                  <span style={{ fontWeight: 700, color: '#1a1a1a' }}>{dashData.today?.deliveryCount ?? 0}</span>
+                  <span style={{ color: '#9aa2ad' }}>deliveries</span>
                 </div>
-                <div style={{ fontSize: 12, color: '#888' }}>
-                  Payable: <span style={{ fontWeight: 600, color: '#cf1322' }}>
+                <div style={{ width: 1, height: 18, background: '#eaecef' }} />
+                <div style={{ fontSize: 12, color: '#7a8290', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, fontWeight: 600 }}>Payable</span>
+                  <span style={{ fontWeight: 700, color: '#cf1322' }}>
                     ₹{Number(dashData.totalPayable ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: '#888' }}>
-                  Receivable: <span style={{ fontWeight: 600, color: '#2e7d32' }}>
+                <div style={{ width: 1, height: 18, background: '#eaecef' }} />
+                <div style={{ fontSize: 12, color: '#7a8290', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, fontWeight: 600 }}>Receivable</span>
+                  <span style={{ fontWeight: 700, color: '#2e7d32' }}>
                     ₹{Number(dashData.totalReceivable ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
                 </div>
-              </div>
+              </>
             )}
           </div>
 

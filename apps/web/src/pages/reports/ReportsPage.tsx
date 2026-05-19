@@ -9,16 +9,22 @@ import {
 } from '@ant-design/icons'
 import { usePnL, useSupplierReport, useCustomerReport, usePaymentsReport, useStockReport, useSuppliers, useCustomers, useCommodities } from '../../api/hooks'
 import { formatINR, formatKg } from '../../utils/format'
+import { BRAND, brandPrintHeader, BRAND_PRINT_CSS, getLogoDataUri } from '../../utils/brand'
 import dayjs from 'dayjs'
 
 const { RangePicker } = DatePicker
 
 // ── PDF export ───────────────────────────────────────────────────────────────
-function exportToPDF(title: string, subtitle: string, contentId: string) {
+async function exportToPDF(title: string, subtitle: string, contentId: string) {
   const content = document.getElementById(contentId)
   if (!content) return
   const printWindow = window.open('', '_blank')
   if (!printWindow) return
+  const logoDataUri = await getLogoDataUri()
+  const header = brandPrintHeader({
+    logoDataUri,
+    rightHtml: `<div>Generated: ${dayjs().format('DD MMM YYYY, h:mm A')}</div>`,
+  })
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -27,48 +33,37 @@ function exportToPDF(title: string, subtitle: string, contentId: string) {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #222; background: #fff; padding: 24px 32px; }
-    .pdf-header { border-bottom: 2px solid #2e7d32; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .pdf-header-left h1 { font-size: 18px; color: #2e7d32; font-weight: 700; }
-    .pdf-header-left p { font-size: 11px; color: #555; margin-top: 2px; }
-    .pdf-header-right { text-align: right; font-size: 10px; color: #888; }
-    .pdf-title { font-size: 13px; font-weight: 700; color: #333; margin-bottom: 2px; }
+    ${BRAND_PRINT_CSS}
+    .pdf-title { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
     .pdf-subtitle { font-size: 10px; color: #666; margin-bottom: 14px; }
     .summary-grid { display: grid; gap: 10px; margin-bottom: 16px; }
     .summary-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 12px; background: #fafafa; }
     .summary-card .label { font-size: 10px; color: #888; margin-bottom: 3px; }
     .summary-card .value { font-size: 13px; font-weight: 700; color: #222; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    thead tr { background: #2e7d32; color: #fff; }
+    thead tr { background: ${BRAND.primary}; color: #fff; }
     thead th { padding: 6px 8px; text-align: left; font-weight: 600; white-space: nowrap; }
     thead th.right { text-align: right; }
     tbody tr:nth-child(even) { background: #f5f9f5; }
     tbody td { padding: 5px 8px; border-bottom: 1px solid #e8e8e8; white-space: nowrap; }
     tbody td.right { text-align: right; }
     tfoot tr { background: #e8f5e9; font-weight: 700; }
-    tfoot td { padding: 6px 8px; border-top: 2px solid #2e7d32; white-space: nowrap; }
+    tfoot td { padding: 6px 8px; border-top: 2px solid ${BRAND.primary}; white-space: nowrap; }
     tfoot td.right { text-align: right; }
-    .green { color: #2e7d32; }
+    .green { color: ${BRAND.primary}; }
     .red { color: #c62828; }
-    .section-title { font-size: 11px; font-weight: 700; color: #2e7d32; border-bottom: 1px solid #c8e6c9; padding-bottom: 4px; margin: 16px 0 8px; }
+    .section-title { font-size: 11px; font-weight: 700; color: ${BRAND.primary}; border-bottom: 1px solid #c8e6c9; padding-bottom: 4px; margin: 16px 0 8px; }
     .pdf-footer { margin-top: 24px; border-top: 1px solid #e0e0e0; padding-top: 8px; font-size: 9px; color: #aaa; display: flex; justify-content: space-between; }
     @media print { body { padding: 12px 16px; } }
   </style>
 </head>
 <body>
-  <div class="pdf-header">
-    <div class="pdf-header-left">
-      <h1>Akshaya Agri Solutions</h1>
-      <p>Agricultural Commodity Trading</p>
-    </div>
-    <div class="pdf-header-right">
-      <div>Generated: ${dayjs().format('DD MMM YYYY, h:mm A')}</div>
-    </div>
-  </div>
+  ${header}
   <div class="pdf-title">${title}</div>
   <div class="pdf-subtitle">${subtitle}</div>
   ${content.innerHTML}
   <div class="pdf-footer">
-    <span>Akshaya Agri Solutions | Confidential</span>
+    <span>${BRAND.name} | Confidential</span>
     <span>Printed on ${dayjs().format('DD/MM/YYYY')}</span>
   </div>
 </body>

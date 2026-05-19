@@ -1,7 +1,9 @@
-import { Form, Input, Button, Card, Typography, message } from 'antd'
+import { Form, Input, Button, message } from 'antd'
+import { LockOutlined, MailOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useLogin } from '../api/hooks'
 import { useAuthStore } from '../store/auth'
+import { BRAND } from '../utils/brand'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -19,28 +21,29 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f5f0' }}>
-      <Card style={{ width: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.1)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Typography.Title level={3} style={{ color: '#2e7d32', margin: 0 }}>
-            Akshaya Agri Solutions
-          </Typography.Title>
-          <Typography.Text type="secondary">Sign in to your account</Typography.Text>
+    <div className="login-shell">
+      <div className="login-card">
+        <div className="login-logo">
+          <img src={BRAND.logoUrl} alt={BRAND.name} />
+          <div className="login-subtitle">Sign in to your account</div>
         </div>
-        <Form layout="vertical" onFinish={onFinish}>
-          <Form.Item label="Email" name="email" rules={[{ required: true, type: 'email' }]}>
-            <Input size="large" placeholder="admin@akshayaagri.com" />
+        <Form layout="vertical" onFinish={onFinish} requiredMark={false}>
+          <Form.Item label="Email" name="email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}>
+            <Input size="large" prefix={<MailOutlined style={{ color: '#bbb' }} />} placeholder="you@akshayaagri.com" autoComplete="email" />
           </Form.Item>
-          <Form.Item label="Password" name="password" rules={[{ required: true }]}>
-            <Input.Password size="large" placeholder="Password" />
+          <Form.Item label="Password" name="password" rules={[{ required: true, message: 'Password is required' }]}>
+            <Input.Password size="large" prefix={<LockOutlined style={{ color: '#bbb' }} />} placeholder="Password" autoComplete="current-password" />
           </Form.Item>
-          <Form.Item>
+          <Form.Item style={{ marginBottom: 8 }}>
             <Button type="primary" htmlType="submit" size="large" block loading={isPending}>
               Sign In
             </Button>
           </Form.Item>
         </Form>
-      </Card>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#a8a8a8', marginTop: 18 }}>
+          © {new Date().getFullYear()} {BRAND.name}
+        </div>
+      </div>
     </div>
   )
 }
