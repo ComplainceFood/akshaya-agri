@@ -3,7 +3,7 @@ import {
   Modal, Button, Upload, Table, Form, Select, InputNumber,
   Alert, Steps, Space, Typography, Tag, Tooltip, message, Spin
 } from 'antd'
-import { InboxOutlined, CheckCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import { InboxOutlined, CheckCircleOutlined, WarningOutlined, FileExcelOutlined } from '@ant-design/icons'
 import api from '../../api/client'
 import { useCreateDelivery, useSuppliers, usePurchaseOrders, useSalesOrders, useCustomers, useCommodities } from '../../api/hooks'
 import dayjs from 'dayjs'
@@ -72,9 +72,11 @@ interface Props {
   onClose: () => void
   onDone: () => void
   formatHint?: 'new' | 'old'
+  source?: 'pdf' | 'excel'
 }
 
-export default function ImportWeighingReport({ open, onClose, onDone, formatHint }: Props) {
+export default function ImportWeighingReport({ open, onClose, onDone, formatHint, source = 'pdf' }: Props) {
+  const isExcelMode = source === 'excel'
   const [step, setStep] = useState(0)
   const [parsing, setParsing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -378,7 +380,9 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
 
   return (
     <Modal
-      title={`Import Sarvani Weighing Report${formatHint === 'old' ? ' (Old Format)' : formatHint === 'new' ? ' (New Format)' : ''}`}
+      title={isExcelMode
+        ? 'Import Sarvani Weighing Report (Excel)'
+        : `Import Sarvani Weighing Report${formatHint === 'old' ? ' (Old Format)' : formatHint === 'new' ? ' (New Format)' : ''}`}
       open={open}
       onCancel={() => { reset(); onClose() }}
       width={1400}
@@ -388,7 +392,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       <Steps
         current={step}
         items={[
-          { title: 'Upload PDF' },
+          { title: isExcelMode ? 'Upload Excel' : 'Upload PDF' },
           { title: 'Review & Fill Details' },
           { title: 'Done' },
         ]}
@@ -398,18 +402,29 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       {step === 0 && (
         <Spin spinning={parsing} tip="Parsing file...">
           <Upload.Dragger
-            accept=".pdf,.xlsx,.xls"
+            accept={isExcelMode ? '.xlsx,.xls' : '.pdf,.xlsx,.xls'}
             beforeUpload={handleUpload}
             showUploadList={false}
             disabled={parsing}
             style={{ padding: 32 }}
           >
-            <p className="ant-upload-drag-icon"><InboxOutlined style={{ fontSize: 48, color: '#1677ff' }} /></p>
-            <p className="ant-upload-text">Click or drag the Sarvani weighing report (PDF or Excel) here</p>
+            <p className="ant-upload-drag-icon">
+              {isExcelMode
+                ? <FileExcelOutlined style={{ fontSize: 48, color: '#52c41a' }} />
+                : <InboxOutlined style={{ fontSize: 48, color: '#1677ff' }} />}
+            </p>
+            <p className="ant-upload-text">
+              {isExcelMode
+                ? 'Click or drag the converted Excel weighing report here'
+                : 'Click or drag the Sarvani weighing report (PDF or Excel) here'}
+            </p>
             <p className="ant-upload-hint" style={{ color: '#888' }}>
-              The "Consignor Wise Finished Weighing Trs Detailed Report" from Sarvani Bio Fuels,
-              as a PDF or a converted Excel file (.xlsx / .xls).<br />
-              Each row (truck load) will be extracted and pre-filled into a delivery record.
+              {isExcelMode
+                ? <>The "Consignor Wise Finished Weighing Trs Detailed Report" converted to Excel (.xlsx / .xls).<br />
+                    Each truck load will be extracted and pre-filled into a delivery record.</>
+                : <>The "Consignor Wise Finished Weighing Trs Detailed Report" from Sarvani Bio Fuels,
+                    as a PDF or a converted Excel file (.xlsx / .xls).<br />
+                    Each row (truck load) will be extracted and pre-filled into a delivery record.</>}
             </p>
           </Upload.Dragger>
         </Spin>

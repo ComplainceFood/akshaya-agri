@@ -4,7 +4,7 @@ import {
   Typography, Space, Popconfirm, message, Divider, Row, Col,
   Descriptions, Tooltip, Tag, Alert, Tabs, Badge
 } from 'antd'
-import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined, FilterOutlined, CheckSquareOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined, UploadOutlined, SaveOutlined, FilterOutlined, CheckSquareOutlined, FileExcelOutlined } from '@ant-design/icons'
 import ImportWeighingReport from './ImportWeighingReport'
 import {
   useDeliveries, useCreateDelivery, useUpdateDelivery, useDeleteDelivery,
@@ -165,6 +165,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
   const [open, setOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importFormat, setImportFormat] = useState<'new' | 'old'>('new')
+  const [importSource, setImportSource] = useState<'pdf' | 'excel'>('pdf')
   const [viewId, setViewId] = useState<string | null>(null)
   const [editing, setEditing] = useState<any>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -465,8 +466,9 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
               <Button danger icon={<DeleteOutlined />}>Delete {selectedIds.length}</Button>
             </Popconfirm>
           )}
-          <Button icon={<UploadOutlined />} onClick={() => { setImportFormat('new'); setImportOpen(true) }}>Import Weighing Report</Button>
-          <Button icon={<UploadOutlined />} onClick={() => { setImportFormat('old'); setImportOpen(true) }}>Import (Old Format)</Button>
+          <Button icon={<UploadOutlined />} onClick={() => { setImportSource('pdf'); setImportFormat('new'); setImportOpen(true) }}>Import Weighing Report</Button>
+          <Button icon={<UploadOutlined />} onClick={() => { setImportSource('pdf'); setImportFormat('old'); setImportOpen(true) }}>Import (Old Format)</Button>
+          <Button icon={<FileExcelOutlined />} onClick={() => { setImportSource('excel'); setImportFormat('new'); setImportOpen(true) }}>Import Excel</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Record Delivery</Button>
         </Space>
       </div>
@@ -573,7 +575,7 @@ function DeliverySheet({ commodityId, commodityName }: { commodityId: string | n
       </Modal>
 
       {/* Import Modal */}
-      <ImportWeighingReport open={importOpen} onClose={() => setImportOpen(false)} onDone={() => setImportOpen(false)} formatHint={importFormat} />
+      <ImportWeighingReport open={importOpen} onClose={() => setImportOpen(false)} onDone={() => setImportOpen(false)} formatHint={importFormat} source={importSource} />
 
       {/* Add/Edit Modal */}
       <Modal title={editing ? 'Edit Delivery' : 'Record Delivery'} open={open} onOk={onSave} onCancel={() => setOpen(false)}
