@@ -9,13 +9,14 @@ import { useCreateDelivery, useSuppliers, usePurchaseOrders, useSalesOrders, use
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { MC_THRESHOLD_PCT, CESS_RATE } from '../../utils/constants'
+import { parseWeighingExcel } from './parseWeighingExcel'
 dayjs.extend(customParseFormat)
 
 const { Text } = Typography
 
 function parseDate(s: string): string {
   if (!s) return dayjs().format('YYYY-MM-DD')
-  const d = dayjs(s, ['DD-MMM-YY', 'DD-MMM-YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'], true)
+  const d = dayjs(s, ['DD-MMM-YY', 'DD-MMM-YYYY', 'DD-MM-YY', 'DD-MM-YYYY', 'DD/MM/YYYY', 'DD/MM/YY', 'YYYY-MM-DD'], true)
   return d.isValid() ? d.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
 }
 
@@ -98,20 +99,49 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
     setStep(0); setRows([]); globalForm.resetFields()
   }
 
+  function toParsedRows(raw: any[]): ParsedRow[] {
+    return raw.map((r: any, i: number) => ({
+      ...r,
+      key: `${i}-${r.challanNo}`,
+      qualityDeductionPct: 0,
+      status: 'ready',
+    }))
+  }
+
   async function handleUpload(file: File) {
     setParsing(true)
     try {
+      const isExcel = /\.(xlsx|xls)$/i.test(file.name)
+      if (isExcel) {
+        const bytes = await file.arrayBuffer()
+        const parsed = toParsedRows(parseWeighingExcel(bytes))
+        if (parsed.length === 0) {
+          Modal.error({
+            title: 'Could not find delivery rows',
+            content: (
+              <div>
+                <p>The Excel file was read but no rows matched. Make sure the first sheet
+                has a header row with columns like <Text code>Challan No</Text>,{' '}
+                <Text code>Net Wt</Text>, <Text code>Vehicle No</Text>, and a date column.</p>
+              </div>
+            ),
+            width: 600,
+          })
+          setParsing(false)
+          return false
+        }
+        setRows(parsed)
+        setStep(1)
+        setParsing(false)
+        return false
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       const resp = await api.post('/parse-weighing-report', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-      const parsed: ParsedRow[] = (resp.data.rows || []).map((r: any, i: number) => ({
-        ...r,
-        key: `${i}-${r.challanNo}`,
-        qualityDeductionPct: 0,
-        status: 'ready',
-      }))
+      const parsed = toParsedRows(resp.data.rows || [])
       if (parsed.length === 0) {
         const debug = resp.data.debug || '(no text extracted)'
         Modal.error({
@@ -130,7 +160,7 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       setRows(parsed)
       setStep(1)
     } catch (e: any) {
-      message.error(`Failed to parse PDF: ${e?.response?.data?.error || e.message}`)
+      message.error(`Failed to parse file: ${e?.response?.data?.error || e.message}`)
     }
     setParsing(false)
     return false
@@ -366,18 +396,19 @@ export default function ImportWeighingReport({ open, onClose, onDone, formatHint
       />
 
       {step === 0 && (
-        <Spin spinning={parsing} tip="Parsing PDF...">
+        <Spin spinning={parsing} tip="Parsing file...">
           <Upload.Dragger
-            accept=".pdf"
+            accept=".pdf,.xlsx,.xls"
             beforeUpload={handleUpload}
             showUploadList={false}
             disabled={parsing}
             style={{ padding: 32 }}
           >
             <p className="ant-upload-drag-icon"><InboxOutlined style={{ fontSize: 48, color: '#1677ff' }} /></p>
-            <p className="ant-upload-text">Click or drag the Sarvani weighing report PDF here</p>
+            <p className="ant-upload-text">Click or drag the Sarvani weighing report (PDF or Excel) here</p>
             <p className="ant-upload-hint" style={{ color: '#888' }}>
-              The "Consignor Wise Finished Weighing Trs Detailed Report" from Sarvani Bio Fuels.<br />
+              The "Consignor Wise Finished Weighing Trs Detailed Report" from Sarvani Bio Fuels,
+              as a PDF or a converted Excel file (.xlsx / .xls).<br />
               Each row (truck load) will be extracted and pre-filled into a delivery record.
             </p>
           </Upload.Dragger>
